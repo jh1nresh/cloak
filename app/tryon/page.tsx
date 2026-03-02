@@ -187,7 +187,7 @@ export default function TryOnPage() {
               <button
                 onClick={handleScrapeUrl}
                 disabled={!productUrl.trim() || isScrapingUrl}
-                className="btn-secondary w-full flex items-center justify-center gap-2"
+                className="btn-outline w-full flex items-center justify-center gap-2"
               >
                 {isScrapingUrl ? (
                   <>
@@ -247,6 +247,36 @@ export default function TryOnPage() {
           </div>
         )}
 
+        {/* How it works — shown when no garment selected */}
+        {!hasGarmentImage && (
+          <div className="mb-6">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">How it works</p>
+            <div className="space-y-3">
+              {[
+                { step: "1", label: "Paste any product URL", sub: "Zara, SHEIN, UNIQLO, any store" },
+                { step: "2", label: "AI generates your look", sub: "Powered by Fashn.ai — ~5 seconds" },
+                { step: "3", label: "Save & share", sub: "Post to IG, send to friends" },
+              ].map(({ step, label, sub }) => (
+                <div key={step} className="flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm">
+                  <span className="w-8 h-8 rounded-full bg-primary text-white text-sm font-bold flex items-center justify-center shrink-0">
+                    {step}
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-primary">{label}</p>
+                    <p className="text-xs text-gray-400">{sub}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 p-4 rounded-2xl bg-accent/10 border border-accent/20">
+              <p className="text-xs text-center text-gray-500">
+                Works with <span className="font-semibold text-primary">Zara · SHEIN · H&M · UNIQLO · Mango</span> and more
+              </p>
+            </div>
+          </div>
+        )}
+
         {error && (
           <p className="text-red-500 text-sm mb-4 text-center">{error}</p>
         )}
@@ -257,7 +287,7 @@ export default function TryOnPage() {
             disabled={!hasGarmentImage}
             className="btn-primary w-full"
           >
-            Try It On
+            Try It On ✨
           </button>
         </div>
       </div>
