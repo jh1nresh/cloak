@@ -9,18 +9,10 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   title: "Cloak - Virtual Try-On",
-  description: "Try on clothes virtually with AI. Upload a selfie and see how any clothing item looks on you.",
+  description: "Try on clothes virtually with AI.",
   manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "Cloak",
-  },
-  openGraph: {
-    title: "Cloak - Virtual Try-On",
-    description: "Try on clothes virtually with AI",
-    type: "website",
-  },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Cloak" },
+  openGraph: { title: "Cloak - Virtual Try-On", description: "Try on clothes virtually with AI", type: "website" },
 };
 
 export const viewport: Viewport = {
@@ -31,11 +23,7 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <head>
