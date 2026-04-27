@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { checkRequestRateLimit } from "@/lib/rate-limit";
-import { getServiceSupabase } from "@/lib/supabase";
+import { uploadImage } from "@/lib/cloudinary";
+import { createUser } from "@/lib/db";
 import {
   assertAllowedContentLength,
   assertValidImageBytes,
@@ -45,44 +46,26 @@ export async function POST(request: NextRequest) {
     const heightCm = parseOptionalNumber(height, 80, 250);
     const weightKg = parseOptionalNumber(weight, 25, 350);
 
-    const supabase = getServiceSupabase();
     const userId = randomUUID();
-    const fileName = `${userId}/avatar${extensionForContentType(photo.type)}`;
 
     const arrayBuffer = await photo.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     assertValidImageBytes(buffer, photo.type);
 
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(fileName, buffer, {
-        contentType: photo.type,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error("Upload error full:", JSON.stringify(uploadError));
-      return NextResponse.json(
-        { error: "Failed to upload avatar", detail: uploadError.message },
-        { status: 500 }
-      );
-    }
-
-    const { data: urlData } = supabase.storage
-      .from("avatars")
-      .getPublicUrl(fileName);
-
-    const avatarUrl = urlData.publicUrl;
-
-    const { error: dbError } = await supabase.from("users").insert({
+    const avatarUrl = await uploadImage(
+      buffer,
+      "cloak/avatars",
+      userId,
+      photo.type
+    );
+    const user = await createUser({
       id: userId,
-      avatar_url: avatarUrl,
-      height_cm: heightCm,
-      weight_kg: weightKg,
+      avatarUrl,
+      heightCm,
+      weightKg,
     });
 
-    if (dbError) {
-      console.error("Database error:", dbError);
+    if (!user) {
       return NextResponse.json(
         { error: "Failed to save user data" },
         { status: 500 }
@@ -119,19 +102,4 @@ function parseOptionalNumber(
   }
 
   return parsed;
-}
-
-function extensionForContentType(contentType: string) {
-  switch (contentType) {
-    case "image/png":
-      return ".png";
-    case "image/webp":
-      return ".webp";
-    case "image/heic":
-      return ".heic";
-    case "image/heif":
-      return ".heif";
-    default:
-      return ".jpg";
-  }
 }

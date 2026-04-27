@@ -13,9 +13,9 @@ product links or images into Cloak from the iOS share sheet.
 
 - Next.js App Router
 - Tailwind CSS
-- Supabase for avatar/result data
+- Railway Postgres for users, garments, try-on jobs, and rate limits
 - Fashn.ai for try-on generation
-- Cloudinary for watermarked output images
+- Cloudinary for avatar images and watermarked output images
 - Web app manifest + lightweight service worker for installability
 - Web Share Target for opening shared product URLs into `/tryon`
 - SwiftUI iOS app + Share Extension in `ios/`
@@ -45,8 +45,8 @@ The iOS app defaults to `http://localhost:3002`; update
 
 Required variables are listed in `.env.local.example`.
 
-Before using the async try-on and shared rate limit flow, apply the Supabase
-migration in `supabase/migrations`.
+Before using the async try-on and shared rate limit flow, apply the Railway
+Postgres migration in `railway/migrations`.
 
 ## Verification
 

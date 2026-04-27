@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { getServiceSupabase } from "@/lib/supabase";
+import { checkPersistentRateLimit } from "@/lib/db";
 import {
   checkRateLimit,
   getClientIp,
@@ -19,17 +19,13 @@ export async function checkRequestRateLimit(
   const key = `${options.keyPrefix}:${clientIp}`;
 
   try {
-    const supabase = getServiceSupabase();
-    const { data, error } = await supabase.rpc("check_rate_limit", {
-      p_key: key,
-      p_max_requests: options.maxRequests,
-      p_window_seconds: Math.ceil(options.windowMs / 1000),
+    const row = await checkPersistentRateLimit({
+      key,
+      maxRequests: options.maxRequests,
+      windowSeconds: Math.ceil(options.windowMs / 1000),
     });
 
-    if (error) throw error;
-
-    const row = Array.isArray(data) ? data[0] : null;
-    if (!row) throw new Error("Rate limit RPC returned no rows");
+    if (!row) throw new Error("Rate limit query returned no rows");
 
     return {
       ok: row.allowed,

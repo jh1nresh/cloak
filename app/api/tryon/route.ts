@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getServiceSupabase } from "@/lib/supabase";
 import { submitFashnTryOn } from "@/lib/fashn";
+import { getGarmentById, getUserById, insertTryOn, updateTryOn } from "@/lib/db";
 import { checkRequestRateLimit } from "@/lib/rate-limit";
 import {
   assertAllowedContentLength,
@@ -72,14 +72,9 @@ export async function POST(request: NextRequest) {
       assertValidImageDataUrl(garmentImageBase64);
     }
 
-    const supabase = getServiceSupabase();
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id, avatar_url")
-      .eq("id", userId)
-      .single();
+    const user = await getUserById(userId);
 
-    if (userError || !user) {
+    if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
@@ -94,13 +89,9 @@ export async function POST(request: NextRequest) {
     let storedGarmentUrl: string | null = garmentImageUrl || null;
 
     if (garmentId) {
-      const { data: garment, error: garmentError } = await supabase
-        .from("garments")
-        .select("id, image_url")
-        .eq("id", garmentId)
-        .single();
+      const garment = await getGarmentById(garmentId);
 
-      if (garmentError || !garment) {
+      if (!garment) {
         return NextResponse.json(
           { error: "Garment not found" },
           { status: 404 }
@@ -124,17 +115,14 @@ export async function POST(request: NextRequest) {
     }
 
     const tryonId = randomUUID();
-    const { error: insertError } = await supabase.from("tryons").insert({
+    const insertedTryOn = await insertTryOn({
       id: tryonId,
-      user_id: userId,
-      garment_id: storedGarmentId,
-      garment_url: storedGarmentUrl,
-      result_url: null,
-      status: "queued",
+      userId,
+      garmentId: storedGarmentId,
+      garmentUrl: storedGarmentUrl,
     });
 
-    if (insertError) {
-      console.error("Database error:", insertError);
+    if (!insertedTryOn) {
       return NextResponse.json(
         { error: "Failed to create try-on job" },
         { status: 500 }
@@ -145,26 +133,22 @@ export async function POST(request: NextRequest) {
     try {
       predictionId = await submitFashnTryOn(avatarUrl, garmentImage);
     } catch (error) {
-      await supabase
-        .from("tryons")
-        .update({
-          status: "failed",
-          error_message:
-            error instanceof Error ? error.message : "Failed to submit try-on",
-        })
-        .eq("id", tryonId);
+      await updateTryOn(tryonId, {
+        status: "failed",
+        error_message:
+          error instanceof Error ? error.message : "Failed to submit try-on",
+      });
 
       throw error;
     }
 
-    const { error: updateError } = await supabase.from("tryons").update({
+    const updatedTryOn = await updateTryOn(tryonId, {
       status: "processing",
       fashn_prediction_id: predictionId,
       error_message: null,
-    }).eq("id", tryonId);
+    });
 
-    if (updateError) {
-      console.error("Database error:", updateError);
+    if (!updatedTryOn) {
       return NextResponse.json(
         { error: "Failed to save try-on job" },
         { status: 500 }

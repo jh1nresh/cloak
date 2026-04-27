@@ -24,4 +24,4 @@ The app defaults to `http://localhost:3002` through `CLOAKAPIBaseURL` in `CloakA
 
 ## Product Direction
 
-This app keeps the backend as the source of truth. The iOS app should never talk directly to Supabase, Railway Postgres, or service-role credentials. Railway can replace Supabase Postgres later, but media storage still needs Cloudinary, S3, R2, or another object store.
+This app keeps the backend as the source of truth. The iOS app should never talk directly to Railway Postgres or service-role credentials. Media storage is handled by the backend through Cloudinary.

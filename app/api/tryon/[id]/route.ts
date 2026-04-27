@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { uploadWithWatermark } from "@/lib/cloudinary";
+import { getTryOnById, lockTryOnForFinalizing, updateTryOn } from "@/lib/db";
 import { getFashnOutputImage, getFashnTryOnStatus } from "@/lib/fashn";
 import { checkRequestRateLimit } from "@/lib/rate-limit";
-import { getServiceSupabase } from "@/lib/supabase";
 
 export async function GET(
   request: NextRequest,
@@ -26,14 +26,9 @@ export async function GET(
 
     const { id } = await params;
 
-    const supabase = getServiceSupabase();
-    const { data, error } = await supabase
-      .from("tryons")
-      .select("*")
-      .eq("id", id)
-      .single();
+    const data = await getTryOnById(id);
 
-    if (error || !data) {
+    if (!data) {
       return NextResponse.json(
         { error: "Try-on not found" },
         { status: 404 }
@@ -51,15 +46,10 @@ export async function GET(
     const fashnStatus = await getFashnTryOnStatus(data.fashn_prediction_id);
 
     if (fashnStatus.status === "failed") {
-      const { data: failedData } = await supabase
-        .from("tryons")
-        .update({
-          status: "failed",
-          error_message: fashnStatus.error || "Try-on generation failed",
-        })
-        .eq("id", id)
-        .select("*")
-        .single();
+      const failedData = await updateTryOn(id, {
+        status: "failed",
+        error_message: fashnStatus.error || "Try-on generation failed",
+      });
 
       return noStoreJson(failedData || {
         ...data,
@@ -72,21 +62,10 @@ export async function GET(
       return noStoreJson(data);
     }
 
-    const { data: lockedData, error: lockError } = await supabase
-      .from("tryons")
-      .update({ status: "finalizing" })
-      .eq("id", id)
-      .eq("status", "processing")
-      .is("result_url", null)
-      .select("*")
-      .single();
+    const lockedData = await lockTryOnForFinalizing(id);
 
-    if (lockError || !lockedData) {
-      const { data: latestData } = await supabase
-        .from("tryons")
-        .select("*")
-        .eq("id", id)
-        .single();
+    if (!lockedData) {
+      const latestData = await getTryOnById(id);
 
       return noStoreJson(latestData || data);
     }
@@ -94,34 +73,24 @@ export async function GET(
     try {
       const outputImageUrl = getFashnOutputImage(fashnStatus);
       const watermarkedUrl = await uploadWithWatermark(outputImageUrl, id);
-      const { data: completedData, error: updateError } = await supabase
-        .from("tryons")
-        .update({
-          result_url: watermarkedUrl,
-          status: "completed",
-          error_message: null,
-        })
-        .eq("id", id)
-        .select("*")
-        .single();
+      const completedData = await updateTryOn(id, {
+        result_url: watermarkedUrl,
+        status: "completed",
+        error_message: null,
+      });
 
-      if (updateError || !completedData) {
-        throw updateError || new Error("Failed to save completed try-on");
+      if (!completedData) {
+        throw new Error("Failed to save completed try-on");
       }
 
       return noStoreJson(completedData);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to finalize try-on";
-      const { data: failedData } = await supabase
-        .from("tryons")
-        .update({
-          status: "failed",
-          error_message: message,
-        })
-        .eq("id", id)
-        .select("*")
-        .single();
+      const failedData = await updateTryOn(id, {
+        status: "failed",
+        error_message: message,
+      });
 
       return noStoreJson(failedData || {
         ...lockedData,

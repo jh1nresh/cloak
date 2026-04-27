@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRequestRateLimit } from "@/lib/rate-limit";
-import { getServiceSupabase } from "@/lib/supabase";
+import { listGarments } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   const rateLimit = await checkRequestRateLimit(request, {
@@ -20,23 +20,18 @@ export async function GET(request: NextRequest) {
 
   const limitParam = request.nextUrl.searchParams.get("limit");
   const limit = Math.min(Math.max(Number(limitParam) || 24, 1), 50);
-  const supabase = getServiceSupabase();
-  const { data, error } = await supabase
-    .from("garments")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(limit);
 
-  if (error) {
+  try {
+    const garments = await listGarments(limit);
+    return NextResponse.json(
+      { garments },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  } catch (error) {
     console.error("Garments feed error:", error);
     return NextResponse.json(
       { error: "Failed to load garments" },
       { status: 500 }
     );
   }
-
-  return NextResponse.json(
-    { garments: data || [] },
-    { headers: { "Cache-Control": "no-store" } }
-  );
 }

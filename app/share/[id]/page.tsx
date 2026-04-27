@@ -3,26 +3,18 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { getServiceSupabase } from "@/lib/supabase";
-import type { TryOn } from "@/lib/database.types";
+import { getTryOnById, type TryOn } from "@/lib/db";
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
 async function getTryOn(id: string): Promise<TryOn | null> {
-  const supabase = getServiceSupabase();
-  const { data, error } = await supabase
-    .from("tryons")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (error || !data) {
+  try {
+    return await getTryOnById(id);
+  } catch {
     return null;
   }
-
-  return data as TryOn;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

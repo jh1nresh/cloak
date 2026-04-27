@@ -11,7 +11,8 @@ photo. The web PWA remains as a fallback and backend surface.
 - **PWA:** Web app manifest + lightweight service worker
 - **Backend:** Next.js API routes
 - **Try-on AI:** Fashn.ai try-on API
-- **Storage:** Supabase (user avatar + try-on history)
+- **Database:** Railway Postgres
+- **Image storage:** Cloudinary for avatars and try-on outputs
 - **Image hosting:** Cloudinary (output images with watermark)
 - **Deployment:** Vercel-ready
 
@@ -22,7 +23,7 @@ photo. The web PWA remains as a fallback and backend surface.
   camera-roll garment upload, try-on submission, and result polling.
 - Opens `cloak://tryon?url=...` and imports the shared product URL.
 - Opens `cloak://tryon?sharedImage=1` and imports the image saved by the Share Extension.
-- Uses the Next API only. It does not connect directly to Supabase, Railway, or
+- Uses the Next API only. It does not connect directly to Railway Postgres or
   service-role credentials.
 
 ### `CloakShareExtension`
@@ -40,7 +41,7 @@ photo. The web PWA remains as a fallback and backend surface.
 ### `/onboarding` — Create Avatar
 - Step 1: Camera capture (use device front camera) OR upload photo
 - Step 2: Input height (cm) and weight (kg) — optional but shown
-- Step 3: "Create My Avatar" button → saves to Supabase + localStorage
+- Step 3: "Create My Avatar" button → saves avatar to Cloudinary and profile data to Railway Postgres + localStorage
 - Design: Clean, feminine aesthetic. White + soft pink/nude tones.
 
 ### `/tryon` — Try On
@@ -71,8 +72,8 @@ photo. The web PWA remains as a fallback and backend surface.
 
 ### `POST /api/avatar`
 - Accepts: multipart/form-data (photo, height, weight)
-- Uploads photo to Supabase Storage
-- Saves user record to Supabase DB
+- Uploads photo to Cloudinary
+- Saves user record to Railway Postgres
 - Returns: { userId, avatarUrl }
 
 ### `POST /api/scrape-garment`
@@ -87,7 +88,7 @@ photo. The web PWA remains as a fallback and backend surface.
 
 ### `POST /api/tryon`
 - Accepts: { avatarUrl, garmentImageUrl or garmentImageBase64 }
-- Creates a Supabase try-on job
+- Creates a Railway Postgres try-on job
 - Calls Fashn.ai try-on API and stores the prediction id
 - Returns immediately: { tryonId, status }
 
@@ -96,7 +97,7 @@ photo. The web PWA remains as a fallback and backend surface.
 - Polls Fashn.ai when status is processing
 - Finalizes completed jobs by uploading the result to Cloudinary with watermark
 
-## Database Schema (Supabase)
+## Database Schema (Railway Postgres)
 
 ```sql
 -- users table
@@ -171,9 +172,8 @@ const response = await fetch("https://api.fashn.ai/v1/run", {
 ## Environment Variables (.env.local)
 ```
 FASHN_API_KEY=your_fashn_api_key_here
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+DATABASE_URL=postgresql://postgres:password@host:port/railway
+DATABASE_SSL=true
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
@@ -190,7 +190,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - **Minimal:** no clutter, lots of whitespace
 
 ## Acceptance Criteria
-- [ ] `/onboarding` captures photo and saves avatar to Supabase
+- [ ] `/onboarding` captures photo, uploads avatar to Cloudinary, and saves profile to Railway Postgres
 - [ ] `/tryon` accepts URL input and scrapes garment image
 - [ ] URL-scraped garments are saved and shown in the feed
 - [ ] `/tryon` accepts direct image upload

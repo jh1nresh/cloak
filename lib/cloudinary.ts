@@ -35,7 +35,8 @@ export async function uploadWithWatermark(
 export async function uploadImage(
   imageBuffer: Buffer,
   folder: string,
-  publicId: string
+  publicId: string,
+  contentType?: string
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     cloudinary.uploader
@@ -44,6 +45,7 @@ export async function uploadImage(
           folder,
           public_id: publicId,
           resource_type: "image",
+          format: formatForContentType(contentType),
         },
         (error, result) => {
           if (error) {
@@ -60,3 +62,18 @@ export async function uploadImage(
 }
 
 export { cloudinary };
+
+function formatForContentType(contentType?: string) {
+  switch (contentType) {
+    case "image/png":
+      return "png";
+    case "image/webp":
+      return "webp";
+    case "image/heic":
+      return "heic";
+    case "image/heif":
+      return "heif";
+    default:
+      return "jpg";
+  }
+}

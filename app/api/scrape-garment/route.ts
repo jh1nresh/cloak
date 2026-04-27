@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import { checkRequestRateLimit } from "@/lib/rate-limit";
-import { getServiceSupabase } from "@/lib/supabase";
+import { upsertGarment } from "@/lib/db";
 import {
   assertPublicHttpUrl,
   fetchPublicUrl,
@@ -153,25 +153,16 @@ export async function POST(request: NextRequest) {
         $('[itemprop="price"]').first().text()
     );
 
-    const supabase = getServiceSupabase();
-    const { data: garment, error: dbError } = await supabase
-      .from("garments")
-      .upsert(
-        {
-          source_url: sourceUrl,
-          image_url: publicImageUrl.toString(),
-          title,
-          brand,
-          price,
-          domain: sourceUrlObj.hostname.replace(/^www\./, ""),
-        },
-        { onConflict: "source_url" }
-      )
-      .select("*")
-      .single();
+    const garment = await upsertGarment({
+      sourceUrl,
+      imageUrl: publicImageUrl.toString(),
+      title,
+      brand,
+      price,
+      domain: sourceUrlObj.hostname.replace(/^www\./, ""),
+    });
 
-    if (dbError || !garment) {
-      console.error("Garment upsert error:", dbError);
+    if (!garment) {
       return NextResponse.json(
         { error: "Failed to save garment" },
         { status: 500 }
