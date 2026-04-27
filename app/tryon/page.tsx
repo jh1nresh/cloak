@@ -40,6 +40,7 @@ export default function TryOnPage() {
   const [inputMode, setInputMode] = useState<InputMode>("url");
   const [productUrl, setProductUrl] = useState("");
   const [isLoadingFeed, setIsLoadingFeed] = useState(true);
+  const [isCheckingProfile, setIsCheckingProfile] = useState(true);
   const [isScrapingUrl, setIsScrapingUrl] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,12 +58,14 @@ export default function TryOnPage() {
     const storedAvatarUrl = localStorage.getItem("avatarUrl");
 
     if (!storedUserId || !storedAvatarUrl) {
+      setIsCheckingProfile(false);
       router.push("/onboarding");
       return;
     }
 
     setUserId(storedUserId);
     setAvatarUrl(storedAvatarUrl);
+    setIsCheckingProfile(false);
   }, [router]);
 
   useEffect(() => {
@@ -203,19 +206,29 @@ export default function TryOnPage() {
     setActiveIndex(Math.min(Math.max(nextIndex, 0), Math.max(feedItems.length - 1, 0)));
   };
 
-  if (!avatarUrl) {
+  if (isCheckingProfile || !avatarUrl) {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-primary">
-        <LoadingSpinner size="lg" />
+      <main className="min-h-dvh bg-[#151210] text-white">
+        <div className="flex min-h-dvh flex-col items-center justify-center px-6 text-center">
+          <div className="mb-5 flex h-20 w-20 items-center justify-center border border-white/12 bg-white/[0.06] backdrop-blur">
+            <LoadingSpinner size="lg" />
+          </div>
+          <p className="text-sm font-semibold">Opening Cloak</p>
+          <p className="mt-2 max-w-64 text-sm leading-5 text-white/52">
+            Fit profile required before the feed unlocks.
+          </p>
+        </div>
       </main>
     );
   }
 
   if (isProcessing) {
     return (
-      <main className="min-h-dvh bg-primary text-white">
+      <main className="min-h-dvh bg-[#151210] text-white">
         <div className="flex min-h-dvh flex-col items-center justify-center px-6 text-center">
-          <LoadingSpinner size="lg" />
+          <div className="mb-5 flex h-20 w-20 items-center justify-center border border-white/12 bg-white/[0.06] backdrop-blur">
+            <LoadingSpinner size="lg" />
+          </div>
           <p className="mt-5 text-sm font-semibold">Starting try-on</p>
           <p className="mt-1 max-w-60 text-sm text-white/65">
             Opening your result as soon as the job is ready.
@@ -226,7 +239,8 @@ export default function TryOnPage() {
   }
 
   return (
-    <main className="relative h-dvh overflow-hidden bg-primary text-white">
+    <main className="relative h-dvh overflow-hidden bg-[#151210] text-white">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,rgba(184,117,107,0.22),transparent_32%)]" />
       <section
         ref={feedRef}
         onScroll={handleFeedScroll}
@@ -243,9 +257,9 @@ export default function TryOnPage() {
               <img
                 src={garment.image_url}
                 alt={garment.title || "Garment"}
-                className="h-full w-full object-contain p-8 pb-56 pt-24"
+                className="h-full w-full object-contain p-8 pb-[14.5rem] pt-24"
               />
-              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(23,20,18,0.72)_0%,transparent_24%,transparent_55%,rgba(23,20,18,0.9)_100%)]" />
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(21,18,16,0.78)_0%,transparent_26%,transparent_54%,rgba(21,18,16,0.94)_100%)]" />
             </article>
           ))
         ) : (
@@ -255,12 +269,12 @@ export default function TryOnPage() {
 
       <header className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-5 py-5">
         <div>
-          <p className="text-xs font-semibold uppercase text-white/55">Cloak</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">Cloak</p>
           <p className="mt-1 text-lg font-semibold">Fit feed</p>
         </div>
         <button
           onClick={() => router.push("/onboarding")}
-          className="relative h-12 w-12 overflow-hidden border border-white/25 bg-white/10"
+          className="relative h-12 w-12 overflow-hidden border border-white/15 bg-white/[0.08] backdrop-blur"
           aria-label="Change profile"
         >
           <img
@@ -274,14 +288,14 @@ export default function TryOnPage() {
       <aside className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-4">
         <button
           onClick={() => router.push("/onboarding")}
-          className="flex h-12 w-12 items-center justify-center border border-white/20 bg-black/30 backdrop-blur"
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/32 backdrop-blur"
           aria-label="Fit photo"
         >
           <UserRound size={20} />
         </button>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-12 w-12 items-center justify-center border border-white/20 bg-black/30 backdrop-blur"
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/32 backdrop-blur"
           aria-label="Upload garment"
         >
           <ImagePlus size={20} />
@@ -291,7 +305,7 @@ export default function TryOnPage() {
             href={activeGarment.source_url}
             target="_blank"
             rel="noreferrer"
-            className="flex h-12 w-12 items-center justify-center border border-white/20 bg-black/30 backdrop-blur"
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/32 backdrop-blur"
             aria-label="Open product"
           >
             <ExternalLink size={20} />
@@ -303,7 +317,7 @@ export default function TryOnPage() {
               setLocalGarment(null);
               setActiveIndex(0);
             }}
-            className="flex h-12 w-12 items-center justify-center border border-white/20 bg-black/30 backdrop-blur"
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/32 backdrop-blur"
             aria-label="Clear upload"
           >
             <X size={20} />
@@ -311,9 +325,9 @@ export default function TryOnPage() {
         )}
       </aside>
 
-      <section className="absolute bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-primary/88 px-5 pb-5 pt-4 backdrop-blur-xl">
+      <section className="absolute bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-[#151210]/90 px-5 pb-5 pt-4 shadow-[0_-24px_80px_rgba(0,0,0,0.48)] backdrop-blur-xl">
         <div className="mb-3">
-          <p className="max-w-[calc(100%-4rem)] truncate text-sm font-semibold">
+          <p className="max-w-[calc(100%-4rem)] truncate text-sm font-semibold text-white">
             {activeGarment?.title || "Add an item to the feed"}
           </p>
           <p className="mt-1 text-xs text-white/55">
@@ -328,8 +342,8 @@ export default function TryOnPage() {
             onClick={() => setInputMode("url")}
             className={`flex h-10 flex-1 items-center justify-center gap-2 border text-sm font-semibold ${
               inputMode === "url"
-                ? "border-white bg-white text-primary"
-                : "border-white/15 bg-white/5 text-white/75"
+                ? "border-white bg-white text-[#171412]"
+                : "border-white/15 bg-white/[0.06] text-white/72"
             }`}
           >
             <Link2 size={16} />
@@ -342,8 +356,8 @@ export default function TryOnPage() {
             }}
             className={`flex h-10 flex-1 items-center justify-center gap-2 border text-sm font-semibold ${
               inputMode === "upload"
-                ? "border-white bg-white text-primary"
-                : "border-white/15 bg-white/5 text-white/75"
+                ? "border-white bg-white text-[#171412]"
+                : "border-white/15 bg-white/[0.06] text-white/72"
             }`}
           >
             <ImagePlus size={16} />
@@ -358,12 +372,12 @@ export default function TryOnPage() {
               value={productUrl}
               onChange={(e) => setProductUrl(e.target.value)}
               placeholder="Paste product URL"
-              className="h-12 min-w-0 flex-1 border border-white/15 bg-white px-4 text-sm text-primary outline-none placeholder:text-stone-400"
+              className="h-12 min-w-0 flex-1 border border-white/15 bg-white px-4 text-sm text-[#171412] outline-none placeholder:text-stone-400"
             />
             <button
               onClick={() => scrapeUrl()}
               disabled={!productUrl.trim() || isScrapingUrl}
-              className="flex h-12 w-12 shrink-0 items-center justify-center bg-white text-primary disabled:opacity-40"
+              className="flex h-12 w-12 shrink-0 items-center justify-center bg-white text-[#171412] disabled:opacity-40"
               aria-label="Import product"
             >
               {isScrapingUrl ? (
@@ -392,7 +406,7 @@ export default function TryOnPage() {
         <button
           onClick={handleTryOn}
           disabled={!activeGarment}
-          className="flex h-12 w-full items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-primary transition disabled:opacity-40"
+          className="flex h-12 w-full items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-[#171412] transition active:scale-[0.99] disabled:opacity-40"
         >
           {activeGarment ? <Play size={18} /> : <RefreshCw size={17} />}
           {activeGarment ? "Try This On" : "Add a Garment"}
@@ -404,8 +418,8 @@ export default function TryOnPage() {
 
 function FeedPlaceholder({ loading = false }: { loading?: boolean }) {
   return (
-    <article className="relative flex h-dvh snap-start flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_35%,#443833,#171412_62%)] px-8 pb-48 text-center">
-      <div className="mb-5 flex h-20 w-20 items-center justify-center border border-white/20 bg-white/10">
+    <article className="relative flex h-dvh snap-start flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_28%,#4a3932,#151210_64%)] px-8 pb-48 text-center">
+      <div className="mb-5 flex h-20 w-20 items-center justify-center border border-white/12 bg-white/[0.06] backdrop-blur">
         {loading ? <LoadingSpinner size="md" /> : <Shirt size={32} />}
       </div>
       <h1 className="text-3xl font-semibold tracking-tight">

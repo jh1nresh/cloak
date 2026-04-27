@@ -76,53 +76,63 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="app-shell">
-      <div className="screen">
-        <header className="mb-8 flex items-center justify-between">
+    <main className="min-h-dvh overflow-hidden bg-[#161310] text-white">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(184,117,107,0.28),transparent_34%),linear-gradient(180deg,#211c18_0%,#151210_58%,#0d0b0a_100%)]" />
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-5 pt-6">
+        <header className="mb-7 flex items-center justify-between">
           <div>
-            <p className="section-title">Cloak</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-              Your fit profile
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">
+              Cloak
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+              Fit profile
             </h1>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center border border-line bg-panel text-sm font-semibold">
+          <div className="flex h-12 w-12 items-center justify-center border border-white/15 bg-white/[0.08] text-sm font-semibold backdrop-blur">
             CL
           </div>
         </header>
 
         {step === "photo" && (
           <section className="flex flex-1 flex-col">
-            <div className="surface mb-4 overflow-hidden">
-              <div className="aspect-[4/5] bg-[linear-gradient(145deg,#fffdf9,#ece3da)] p-5">
-                <div className="flex h-full flex-col justify-between border border-line bg-white/45 p-4">
-                  <div>
-                    <p className="text-sm font-semibold text-primary">
-                      Start with one clear portrait
-                    </p>
-                    <p className="mt-1 text-sm leading-5 text-muted">
-                      Use a fitted outfit and keep your full body in frame.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="h-20 border border-line bg-panel" />
-                    <div className="h-28 border border-primary bg-white" />
-                    <div className="h-20 border border-line bg-panel" />
-                  </div>
+            <div className="mb-5 overflow-hidden border border-white/12 bg-white/[0.06] p-3 shadow-[0_26px_80px_rgba(0,0,0,0.36)] backdrop-blur-xl">
+              <div className="relative aspect-[4/5] overflow-hidden border border-white/10 bg-[linear-gradient(155deg,#f6eee5_0%,#c8b6a9_44%,#3f332d_100%)]">
+                <div className="absolute inset-x-6 top-6 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.18em] text-black/45">
+                  <span>Fit frame</span>
+                  <span>01</span>
+                </div>
+                <div className="absolute inset-x-12 bottom-9 top-24 rounded-t-full border border-black/15 bg-black/10" />
+                <div className="absolute left-1/2 top-20 h-16 w-16 -translate-x-1/2 rounded-full border border-black/15 bg-[#eadfd6]" />
+                <div className="absolute bottom-8 left-1/2 h-40 w-28 -translate-x-1/2 rounded-t-[48px] border border-black/15 bg-[#1d1815]" />
+                <div className="absolute inset-x-5 bottom-5 flex justify-between">
+                  <div className="h-16 w-14 border border-black/10 bg-white/35" />
+                  <div className="h-16 w-14 border border-black/10 bg-white/35" />
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3">
+            <div className="mb-5 grid grid-cols-3 gap-2">
+              {["Front", "Bright", "Full body"].map((label) => (
+                <div
+                  key={label}
+                  className="border border-white/10 bg-white/[0.06] px-3 py-3 text-center text-xs font-semibold text-white/68"
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-auto grid gap-3">
               <button
                 onClick={() => setShowCamera(true)}
-                className="btn-primary w-full"
+                className="inline-flex h-[52px] items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-[#171412] transition active:scale-[0.99]"
               >
                 <Camera size={18} />
                 Take Photo
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="btn-outline w-full"
+                className="inline-flex h-[52px] items-center justify-center gap-2 border border-white/15 bg-white/[0.06] px-5 text-sm font-semibold text-white backdrop-blur transition active:scale-[0.99]"
               >
                 <Upload size={18} />
                 Upload Photo
@@ -141,19 +151,23 @@ export default function OnboardingPage() {
 
         {step === "details" && photoData && (
           <section className="flex flex-1 flex-col">
-            <div className="surface mb-5 overflow-hidden">
-              <div className="relative aspect-[4/5] bg-stone-100">
+            <div className="mb-5 overflow-hidden border border-white/12 bg-white/[0.06] p-3 shadow-[0_26px_80px_rgba(0,0,0,0.36)] backdrop-blur-xl">
+              <div className="relative aspect-[4/5] overflow-hidden bg-stone-100">
                 <img
                   src={photoData}
                   alt="Your profile"
                   className="absolute inset-0 h-full w-full object-cover"
                 />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_52%,rgba(0,0,0,0.42)_100%)]" />
+                <p className="absolute bottom-4 left-4 text-xs font-semibold uppercase tracking-[0.18em] text-white/72">
+                  Profile image
+                </p>
               </div>
             </div>
 
             <div className="mb-5 grid grid-cols-2 gap-3">
-              <label className="panel p-3">
-                <span className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase text-muted">
+              <label className="border border-white/10 bg-white/[0.06] p-4 backdrop-blur">
+                <span className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/48">
                   <Ruler size={15} />
                   Height
                 </span>
@@ -162,12 +176,12 @@ export default function OnboardingPage() {
                   value={height}
                   onChange={(e) => setHeight(e.target.value)}
                   placeholder="170"
-                  className="h-10 w-full bg-transparent text-2xl font-semibold outline-none placeholder:text-stone-300"
+                  className="h-10 w-full bg-transparent text-2xl font-semibold text-white outline-none placeholder:text-white/18"
                 />
-                <span className="text-xs text-muted">cm</span>
+                <span className="text-xs text-white/45">cm</span>
               </label>
-              <label className="panel p-3">
-                <span className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase text-muted">
+              <label className="border border-white/10 bg-white/[0.06] p-4 backdrop-blur">
+                <span className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/48">
                   <Weight size={15} />
                   Weight
                 </span>
@@ -176,20 +190,23 @@ export default function OnboardingPage() {
                   value={weight}
                   onChange={(e) => setWeight(e.target.value)}
                   placeholder="65"
-                  className="h-10 w-full bg-transparent text-2xl font-semibold outline-none placeholder:text-stone-300"
+                  className="h-10 w-full bg-transparent text-2xl font-semibold text-white outline-none placeholder:text-white/18"
                 />
-                <span className="text-xs text-muted">kg</span>
+                <span className="text-xs text-white/45">kg</span>
               </label>
             </div>
 
             {error && (
-              <p className="mb-4 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <p className="mb-4 border border-red-300/35 bg-red-950/40 px-3 py-2 text-sm text-red-50">
                 {error}
               </p>
             )}
 
             <div className="mt-auto grid gap-3">
-              <button onClick={handleCreateAvatar} className="btn-primary w-full">
+              <button
+                onClick={handleCreateAvatar}
+                className="inline-flex h-[52px] items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-[#171412] transition active:scale-[0.99]"
+              >
                 Create Profile
                 <ArrowRight size={18} />
               </button>
@@ -198,7 +215,7 @@ export default function OnboardingPage() {
                   setPhotoData(null);
                   setStep("photo");
                 }}
-                className="btn-outline w-full"
+                className="inline-flex h-[52px] items-center justify-center gap-2 border border-white/15 bg-white/[0.06] px-5 text-sm font-semibold text-white backdrop-blur"
               >
                 <RotateCcw size={17} />
                 Retake
@@ -209,12 +226,14 @@ export default function OnboardingPage() {
 
         {step === "creating" && (
           <section className="flex flex-1 flex-col items-center justify-center text-center">
-            <LoadingSpinner size="lg" />
-            <p className="mt-5 text-sm font-semibold text-primary">
+            <div className="mb-6 flex h-20 w-20 items-center justify-center border border-white/12 bg-white/[0.06] backdrop-blur">
+              <LoadingSpinner size="lg" />
+            </div>
+            <p className="text-sm font-semibold text-white">
               Creating profile
             </p>
-            <p className="mt-1 max-w-56 text-sm text-muted">
-              Saving your portrait for try-on.
+            <p className="mt-1 max-w-56 text-sm text-white/52">
+              Saving your fit image.
             </p>
           </section>
         )}

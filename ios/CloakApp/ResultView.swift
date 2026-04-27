@@ -7,7 +7,7 @@ struct ResultView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color(red: 0.08, green: 0.07, blue: 0.06).ignoresSafeArea()
 
             if let tryOn = store.activeTryOn {
                 switch tryOn.status {
@@ -54,9 +54,15 @@ struct ProcessingResultView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            ProgressView()
-                .controlSize(.large)
-                .tint(.white)
+            ZStack {
+                Rectangle()
+                    .fill(.white.opacity(0.06))
+                    .frame(width: 84, height: 84)
+                    .overlay(Rectangle().stroke(.white.opacity(0.12)))
+                ProgressView()
+                    .controlSize(.large)
+                    .tint(.white)
+            }
             Text(title)
                 .font(.title2.weight(.bold))
             Text("You can leave this screen open while Cloak finalizes the image.")
@@ -108,7 +114,11 @@ struct CompletedResultView: View {
             }
             .ignoresSafeArea()
 
-            LinearGradient(colors: [.clear, .black.opacity(0.78)], startPoint: .center, endPoint: .bottom)
+            LinearGradient(
+                colors: [.clear, Color(red: 0.08, green: 0.07, blue: 0.06).opacity(0.9)],
+                startPoint: .center,
+                endPoint: .bottom
+            )
                 .ignoresSafeArea()
 
             HStack(spacing: 14) {
@@ -131,7 +141,8 @@ struct CompletedResultView: View {
                         Image(systemName: "square.and.arrow.up")
                             .font(.headline.weight(.bold))
                             .frame(width: 50, height: 50)
-                            .background(.white.opacity(0.16))
+                            .background(.black.opacity(0.32))
+                            .overlay(Circle().stroke(.white.opacity(0.16)))
                             .clipShape(Circle())
                     }
                 }
@@ -191,8 +202,9 @@ struct ResultButtonStyle: ButtonStyle {
             .font(.headline)
             .padding(.horizontal, 16)
             .frame(height: 50)
-            .background(kind == .primary ? Color.white : Color.white.opacity(0.16))
-            .foregroundStyle(kind == .primary ? Color.black : Color.white)
+            .background(kind == .primary ? Color.white : Color.white.opacity(0.12))
+            .foregroundStyle(kind == .primary ? Color(red: 0.09, green: 0.08, blue: 0.07) : Color.white)
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.white.opacity(kind == .primary ? 0 : 0.14)))
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
     }

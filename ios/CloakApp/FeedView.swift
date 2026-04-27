@@ -8,7 +8,12 @@ struct FeedView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color(red: 0.08, green: 0.07, blue: 0.06).ignoresSafeArea()
+            Circle()
+                .fill(Color(red: 0.72, green: 0.46, blue: 0.42).opacity(0.18))
+                .frame(width: 280, height: 280)
+                .blur(radius: 90)
+                .offset(y: -330)
 
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
@@ -94,7 +99,7 @@ struct GarmentCard<UploadPicker: View>: View {
                 .ignoresSafeArea()
 
             LinearGradient(
-                colors: [.clear, .black.opacity(0.72)],
+                colors: [.clear, Color(red: 0.08, green: 0.07, blue: 0.06).opacity(0.88)],
                 startPoint: .center,
                 endPoint: .bottom
             )
@@ -120,11 +125,10 @@ struct GarmentCard<UploadPicker: View>: View {
                         Label(isLoading ? "Working" : "Try on", systemImage: "sparkles")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
+                            .frame(height: 52)
                     }
                     .background(.white)
-                    .foregroundStyle(.black)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .foregroundStyle(Color(red: 0.09, green: 0.08, blue: 0.07))
                     .disabled(isLoading)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -191,7 +195,8 @@ struct FeedIconButton: View {
             Image(systemName: systemImage)
                 .font(.title2.weight(.bold))
                 .frame(width: 50, height: 50)
-                .background(.ultraThinMaterial)
+                .background(.black.opacity(0.32))
+                .overlay(Circle().stroke(.white.opacity(0.16)))
                 .clipShape(Circle())
             Text(title)
                 .font(.caption2.weight(.bold))
@@ -227,16 +232,16 @@ struct ImportPanel: View {
                     Image(systemName: isLoading ? "hourglass" : "arrow.up")
                         .font(.headline.weight(.bold))
                         .frame(width: 48, height: 48)
-                        .background(.white)
-                        .foregroundStyle(.black)
-                        .clipShape(Circle())
+                    .background(.white)
+                    .foregroundStyle(Color(red: 0.09, green: 0.08, blue: 0.07))
+                    .clipShape(Circle())
                 }
                 .disabled(isLoading)
             }
         }
         .padding(18)
         .padding(.bottom, 10)
-        .background(.black.opacity(0.88))
+        .background(Color(red: 0.08, green: 0.07, blue: 0.06).opacity(0.92))
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .onTapGesture(count: 2, perform: onClose)
@@ -249,8 +254,14 @@ struct TopChrome: View {
 
     var body: some View {
         HStack {
-            Text("Cloak")
-                .font(.title3.weight(.black))
+            VStack(alignment: .leading, spacing: 3) {
+                Text("CLOAK")
+                    .font(.caption2.weight(.bold))
+                    .tracking(3)
+                    .foregroundStyle(.white.opacity(0.45))
+                Text("Fit feed")
+                    .font(.headline.weight(.semibold))
+            }
             Spacer()
             Menu {
                 Button("Reset fit photo", role: .destructive, action: onReset)
@@ -295,14 +306,14 @@ struct EmptyFeedView: View {
                     .padding(.horizontal, 28)
                     .padding(.vertical, 14)
                     .background(.white)
-                    .foregroundStyle(.black)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .foregroundStyle(Color(red: 0.09, green: 0.08, blue: 0.07))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             Spacer()
         }
         .padding(24)
         .foregroundStyle(.white)
-        .background(Color.black)
+        .background(Color(red: 0.08, green: 0.07, blue: 0.06))
     }
 }
 

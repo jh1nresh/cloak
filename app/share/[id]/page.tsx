@@ -61,9 +61,9 @@ export default async function SharePage({ params }: Props) {
 
   if (!tryon || tryon.status !== "completed" || !tryon.result_url) {
     return (
-      <main className="min-h-dvh bg-primary text-white">
+      <main className="min-h-dvh bg-[#151210] text-white">
         <div className="flex min-h-dvh items-center justify-center px-5 text-center">
-          <div className="w-full max-w-sm border border-white/15 bg-white/10 p-6 backdrop-blur">
+          <div className="w-full max-w-sm border border-white/12 bg-white/[0.06] p-6 shadow-[0_26px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl">
             <p className="text-sm font-semibold">
               Result unavailable
             </p>
@@ -72,7 +72,7 @@ export default async function SharePage({ params }: Props) {
             </p>
             <Link
               href="/onboarding"
-              className="mt-5 flex h-12 w-full items-center justify-center bg-white px-5 text-sm font-semibold text-primary"
+              className="mt-5 flex h-12 w-full items-center justify-center bg-white px-5 text-sm font-semibold text-[#171412]"
             >
               Create Your Own
             </Link>
@@ -83,26 +83,27 @@ export default async function SharePage({ params }: Props) {
   }
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-primary text-white">
+    <main className="relative min-h-dvh overflow-hidden bg-[#151210] text-white">
       <img
         src={tryon.result_url}
         alt="Virtual try-on result"
         className="absolute inset-0 h-full w-full object-contain p-4 pb-28 pt-16"
       />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(21,18,16,0.72)_0%,transparent_28%,transparent_60%,rgba(21,18,16,0.92)_100%)]" />
 
       <header className="absolute left-0 right-0 top-0 z-10 px-5 py-5">
-        <p className="text-xs font-semibold uppercase text-white/55">Cloak</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">Cloak</p>
         <p className="mt-1 text-lg font-semibold">Shared try-on</p>
       </header>
 
-      <section className="absolute bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-primary/88 px-5 pb-5 pt-4 backdrop-blur-xl">
+      <section className="absolute bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-[#151210]/90 px-5 pb-5 pt-4 shadow-[0_-24px_80px_rgba(0,0,0,0.48)] backdrop-blur-xl">
         <p className="text-sm font-semibold">Make it yours</p>
         <p className="mt-1 text-sm text-white/65">
           Create your own fit feed from a single photo.
         </p>
         <Link
           href="/onboarding"
-          className="mt-4 flex h-12 w-full items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-primary"
+          className="mt-4 flex h-12 w-full items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-[#171412]"
         >
           Try This Look
           <ArrowRight size={18} />

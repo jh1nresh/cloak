@@ -100,17 +100,19 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
 
   if (loading) {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-primary">
-        <LoadingSpinner size="lg" />
+      <main className="flex min-h-dvh items-center justify-center bg-[#151210] text-white">
+        <div className="flex h-20 w-20 items-center justify-center border border-white/12 bg-white/[0.06] backdrop-blur">
+          <LoadingSpinner size="lg" />
+        </div>
       </main>
     );
   }
 
   if (error || !result) {
     return (
-      <main className="min-h-dvh bg-primary text-white">
+      <main className="min-h-dvh bg-[#151210] text-white">
         <div className="flex min-h-dvh items-center justify-center px-5 text-center">
-          <div className="w-full max-w-sm border border-white/15 bg-white/10 p-6 backdrop-blur">
+          <div className="w-full max-w-sm border border-white/12 bg-white/[0.06] p-6 shadow-[0_26px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl">
             <p className="text-sm font-semibold">
               Result unavailable
             </p>
@@ -119,7 +121,7 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
             </p>
             <button
               onClick={() => router.push("/tryon")}
-              className="mt-5 flex h-12 w-full items-center justify-center bg-white px-5 text-sm font-semibold text-primary"
+              className="mt-5 flex h-12 w-full items-center justify-center bg-white px-5 text-sm font-semibold text-[#171412]"
             >
               Try Again
             </button>
@@ -131,10 +133,10 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
 
   if (result.status !== "completed" || !result.result_url) {
     return (
-      <main className="min-h-dvh bg-primary text-white">
+      <main className="min-h-dvh bg-[#151210] text-white">
         <div className="flex min-h-dvh items-center justify-center px-5 text-center">
-          <div className="w-full max-w-sm border border-white/15 bg-white/10 p-6 backdrop-blur">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center border border-white/20 bg-white/10">
+          <div className="w-full max-w-sm border border-white/12 bg-white/[0.06] p-6 shadow-[0_26px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center border border-white/12 bg-white/[0.06]">
               <Sparkles size={22} className="text-accent" />
             </div>
             <div className="mt-6 flex justify-center">
@@ -153,21 +155,23 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
   }
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-primary text-white">
+    <main className="relative min-h-dvh overflow-hidden bg-[#151210] text-white">
       <img
         src={result.result_url}
         alt="Your try-on result"
-        className="absolute inset-0 h-full w-full object-contain p-4 pb-28 pt-16"
+        className="absolute inset-0 h-full w-full object-contain p-4 pb-32 pt-[4.5rem]"
       />
+
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(21,18,16,0.72)_0%,transparent_25%,transparent_60%,rgba(21,18,16,0.92)_100%)]" />
 
       <header className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-5 py-5">
         <div>
-          <p className="text-xs font-semibold uppercase text-white/55">Cloak</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">Cloak</p>
           <p className="mt-1 text-lg font-semibold">Try-on result</p>
         </div>
         <button
           onClick={() => router.push("/tryon")}
-          className="flex h-11 w-11 items-center justify-center border border-white/20 bg-black/30 backdrop-blur"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/32 backdrop-blur"
           aria-label="Try another"
         >
           <RotateCcw size={18} />
@@ -177,28 +181,28 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
       <aside className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-4">
         <button
           onClick={handleSave}
-          className="flex h-12 w-12 items-center justify-center border border-white/20 bg-black/30 backdrop-blur"
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/32 backdrop-blur"
           aria-label="Save photo"
         >
             <Download size={18} />
         </button>
         <button
           onClick={handleShare}
-          className="flex h-12 w-12 items-center justify-center border border-white/20 bg-black/30 backdrop-blur"
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/32 backdrop-blur"
           aria-label="Share"
         >
             <Share2 size={18} />
         </button>
       </aside>
 
-      <section className="absolute bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-primary/88 px-5 pb-5 pt-4 backdrop-blur-xl">
+      <section className="absolute bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-[#151210]/90 px-5 pb-5 pt-4 shadow-[0_-24px_80px_rgba(0,0,0,0.48)] backdrop-blur-xl">
         <p className="text-sm font-semibold">Your look is ready</p>
         <p className="mt-1 text-sm text-white/65">
           Save it, share it, or keep swiping into another piece.
         </p>
         <button
           onClick={() => router.push("/tryon")}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-primary"
+          className="mt-4 flex h-12 w-full items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-[#171412]"
         >
           <RotateCcw size={18} />
           Try Another
@@ -206,7 +210,7 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
       </section>
 
       {showToast && (
-        <div className="fixed bottom-32 left-1/2 z-20 -translate-x-1/2 border border-white/15 bg-white px-4 py-2 text-sm font-semibold text-primary shadow-lg">
+        <div className="fixed bottom-32 left-1/2 z-20 -translate-x-1/2 border border-white/15 bg-white px-4 py-2 text-sm font-semibold text-[#171412] shadow-lg">
           Link copied
         </div>
       )}
