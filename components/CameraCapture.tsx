@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
+import { Camera, RotateCcw, X } from "lucide-react";
 
 interface CameraCaptureProps {
   onCapture: (imageData: string) => void;
@@ -61,8 +62,8 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      <div className="flex-1 relative">
+    <div className="fixed inset-0 z-50 flex flex-col bg-black">
+      <div className="relative flex-1">
         <video
           ref={videoRef}
           autoPlay
@@ -74,41 +75,49 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
         <canvas ref={canvasRef} className="hidden" />
 
         {!isStreaming && !error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black">
+          <div className="absolute inset-0 flex items-center justify-center bg-black p-6">
             <button
               onClick={startCamera}
-              className="btn-primary"
+              className="inline-flex h-12 items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-primary"
             >
+              <Camera size={18} />
               Start Camera
             </button>
           </div>
         )}
 
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black p-6">
-            <div className="text-center text-white">
-              <p className="mb-4">{error}</p>
-              <button onClick={startCamera} className="btn-secondary">
-                Try Again
+          <div className="absolute inset-0 flex items-center justify-center bg-black/95 p-6">
+            <div className="w-full max-w-xs border border-white/20 bg-white p-5 text-center text-primary">
+              <p className="text-sm leading-5">{error}</p>
+              <button
+                onClick={startCamera}
+                className="mt-4 inline-flex h-11 items-center justify-center gap-2 bg-primary px-4 text-sm font-semibold text-white"
+              >
+                <RotateCcw size={17} />
+                Retry
               </button>
             </div>
           </div>
         )}
       </div>
 
-      <div className="p-6 bg-black flex justify-center gap-4">
+      <div className="flex items-center justify-center gap-8 bg-black px-6 py-5">
         <button
           onClick={handleCancel}
-          className="px-6 py-3 text-white rounded-full"
+          className="inline-flex h-12 w-12 items-center justify-center border border-white/20 text-white"
+          aria-label="Cancel"
         >
-          Cancel
+          <X size={20} />
         </button>
         {isStreaming && (
           <button
             onClick={capturePhoto}
-            className="w-16 h-16 rounded-full bg-white border-4 border-accent active:scale-95 transition-transform"
+            className="h-16 w-16 rounded-full border-4 border-white bg-white/20 ring-2 ring-white/50 transition active:scale-95"
+            aria-label="Capture photo"
           />
         )}
+        <div className="h-12 w-12" />
       </div>
     </div>
   );

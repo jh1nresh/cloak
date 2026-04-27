@@ -1,24 +1,56 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  ArrowUp,
+  ExternalLink,
+  ImagePlus,
+  Link2,
+  Loader2,
+  Play,
+  RefreshCw,
+  Shirt,
+  UserRound,
+  X,
+} from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 type InputMode = "url" | "upload";
+
+type FeedGarment = {
+  id: string | null;
+  image_url: string;
+  title: string | null;
+  brand: string | null;
+  price: string | null;
+  source_url: string | null;
+  domain: string | null;
+  isLocal?: boolean;
+};
 
 export default function TryOnPage() {
   const router = useRouter();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [garments, setGarments] = useState<FeedGarment[]>([]);
+  const [localGarment, setLocalGarment] = useState<FeedGarment | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [inputMode, setInputMode] = useState<InputMode>("url");
   const [productUrl, setProductUrl] = useState("");
-  const [garmentImageUrl, setGarmentImageUrl] = useState<string | null>(null);
-  const [garmentImageBase64, setGarmentImageBase64] = useState<string | null>(null);
+  const [isLoadingFeed, setIsLoadingFeed] = useState(true);
   const [isScrapingUrl, setIsScrapingUrl] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const feedRef = useRef<HTMLDivElement>(null);
+
+  const feedItems = useMemo(
+    () => (localGarment ? [localGarment, ...garments] : garments),
+    [localGarment, garments]
+  );
+  const activeGarment = feedItems[activeIndex] || feedItems[0] || null;
 
   useEffect(() => {
     const storedUserId = localStorage.getItem("userId");
@@ -33,19 +65,59 @@ export default function TryOnPage() {
     setAvatarUrl(storedAvatarUrl);
   }, [router]);
 
-  const handleScrapeUrl = async () => {
-    if (!productUrl.trim()) return;
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadGarments = async () => {
+      try {
+        const res = await fetch("/api/garments?limit=30");
+        if (!res.ok) throw new Error("Failed to load garments");
+        const data = await res.json();
+        if (!cancelled) setGarments(data.garments || []);
+      } catch (err) {
+        console.error("Garments feed error:", err);
+      } finally {
+        if (!cancelled) setIsLoadingFeed(false);
+      }
+    };
+
+    loadGarments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const sharedUrl = new URLSearchParams(window.location.search).get("url");
+    if (!sharedUrl) return;
+
+    setProductUrl(sharedUrl);
+    setInputMode("url");
+    scrapeUrl(sharedUrl);
+    window.history.replaceState(null, "", "/tryon");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const scrollToTop = () => {
+    setActiveIndex(0);
+    requestAnimationFrame(() => {
+      feedRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  };
+
+  const scrapeUrl = async (urlToScrape = productUrl) => {
+    if (!urlToScrape.trim()) return;
 
     setIsScrapingUrl(true);
     setError(null);
-    setGarmentImageUrl(null);
-    setGarmentImageBase64(null);
+    setLocalGarment(null);
 
     try {
       const res = await fetch("/api/scrape-garment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: productUrl }),
+        body: JSON.stringify({ url: urlToScrape }),
       });
 
       if (!res.ok) {
@@ -53,10 +125,15 @@ export default function TryOnPage() {
       }
 
       const data = await res.json();
-      setGarmentImageUrl(data.imageUrl);
+      const garment = data.garment as FeedGarment;
+      setGarments((current) => [
+        garment,
+        ...current.filter((item) => item.id !== garment.id),
+      ]);
+      scrollToTop();
     } catch (err) {
       console.error("Scrape error:", err);
-      setError("Could not fetch product image. Try uploading instead.");
+      setError("Could not import that item. Upload a screenshot instead.");
     } finally {
       setIsScrapingUrl(false);
     }
@@ -64,20 +141,30 @@ export default function TryOnPage() {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setError(null);
-      setGarmentImageUrl(null);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        setGarmentImageBase64(result);
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+
+    setError(null);
+    setInputMode("upload");
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setLocalGarment({
+        id: null,
+        image_url: event.target?.result as string,
+        title: file.name.replace(/\.[^.]+$/, ""),
+        brand: "Uploaded",
+        price: null,
+        source_url: null,
+        domain: null,
+        isLocal: true,
+      });
+      scrollToTop();
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleTryOn = async () => {
-    if (!avatarUrl || (!garmentImageUrl && !garmentImageBase64)) return;
+    if (!avatarUrl || !activeGarment) return;
 
     setIsProcessing(true);
     setError(null);
@@ -89,8 +176,9 @@ export default function TryOnPage() {
         body: JSON.stringify({
           userId,
           avatarUrl,
-          garmentImageUrl,
-          garmentImageBase64,
+          garmentId: activeGarment.id,
+          garmentImageUrl: activeGarment.isLocal ? null : activeGarment.image_url,
+          garmentImageBase64: activeGarment.isLocal ? activeGarment.image_url : null,
         }),
       });
 
@@ -107,12 +195,17 @@ export default function TryOnPage() {
     }
   };
 
-  const hasGarmentImage = garmentImageUrl || garmentImageBase64;
-  const garmentPreviewSrc = garmentImageBase64 || garmentImageUrl;
+  const handleFeedScroll = () => {
+    const element = feedRef.current;
+    if (!element) return;
+
+    const nextIndex = Math.round(element.scrollTop / element.clientHeight);
+    setActiveIndex(Math.min(Math.max(nextIndex, 0), Math.max(feedItems.length - 1, 0)));
+  };
 
   if (!avatarUrl) {
     return (
-      <main className="min-h-dvh bg-background flex items-center justify-center">
+      <main className="flex min-h-dvh items-center justify-center bg-primary">
         <LoadingSpinner size="lg" />
       </main>
     );
@@ -120,180 +213,209 @@ export default function TryOnPage() {
 
   if (isProcessing) {
     return (
-      <main className="min-h-dvh bg-background px-6 py-8 flex flex-col items-center justify-center">
-        <LoadingSpinner size="lg" />
-        <p className="mt-6 text-gray-500 text-center">
-          Creating your try-on image...
-        </p>
-        <p className="mt-2 text-gray-400 text-sm text-center">
-          This may take 20-30 seconds
-        </p>
+      <main className="min-h-dvh bg-primary text-white">
+        <div className="flex min-h-dvh flex-col items-center justify-center px-6 text-center">
+          <LoadingSpinner size="lg" />
+          <p className="mt-5 text-sm font-semibold">Starting try-on</p>
+          <p className="mt-1 max-w-60 text-sm text-white/65">
+            Opening your result as soon as the job is ready.
+          </p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-dvh bg-background px-6 py-8 flex flex-col">
-      <div className="flex-1 flex flex-col max-w-md mx-auto w-full">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-primary">Try On</h1>
-          <button
-            onClick={() => router.push("/onboarding")}
-            className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-accent hover:border-primary transition-colors"
+    <main className="relative h-dvh overflow-hidden bg-primary text-white">
+      <section
+        ref={feedRef}
+        onScroll={handleFeedScroll}
+        className="h-dvh snap-y snap-mandatory overflow-y-auto overscroll-contain"
+      >
+        {isLoadingFeed && !feedItems.length ? (
+          <FeedPlaceholder loading />
+        ) : feedItems.length ? (
+          feedItems.map((garment) => (
+            <article
+              key={garment.id || garment.image_url}
+              className="relative flex h-dvh snap-start items-center justify-center"
+            >
+              <img
+                src={garment.image_url}
+                alt={garment.title || "Garment"}
+                className="h-full w-full object-contain p-8 pb-56 pt-24"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(23,20,18,0.72)_0%,transparent_24%,transparent_55%,rgba(23,20,18,0.9)_100%)]" />
+            </article>
+          ))
+        ) : (
+          <FeedPlaceholder />
+        )}
+      </section>
+
+      <header className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-5 py-5">
+        <div>
+          <p className="text-xs font-semibold uppercase text-white/55">Cloak</p>
+          <p className="mt-1 text-lg font-semibold">Fit feed</p>
+        </div>
+        <button
+          onClick={() => router.push("/onboarding")}
+          className="relative h-12 w-12 overflow-hidden border border-white/25 bg-white/10"
+          aria-label="Change profile"
+        >
+          <img
+            src={avatarUrl}
+            alt="Your fit photo"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        </button>
+      </header>
+
+      <aside className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-4">
+        <button
+          onClick={() => router.push("/onboarding")}
+          className="flex h-12 w-12 items-center justify-center border border-white/20 bg-black/30 backdrop-blur"
+          aria-label="Fit photo"
+        >
+          <UserRound size={20} />
+        </button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="flex h-12 w-12 items-center justify-center border border-white/20 bg-black/30 backdrop-blur"
+          aria-label="Upload garment"
+        >
+          <ImagePlus size={20} />
+        </button>
+        {activeGarment?.source_url && (
+          <a
+            href={activeGarment.source_url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex h-12 w-12 items-center justify-center border border-white/20 bg-black/30 backdrop-blur"
+            aria-label="Open product"
           >
-            <img
-              src={avatarUrl}
-              alt="Your avatar"
-              className="absolute inset-0 h-full w-full object-cover"
-            />
+            <ExternalLink size={20} />
+          </a>
+        )}
+        {localGarment && (
+          <button
+            onClick={() => {
+              setLocalGarment(null);
+              setActiveIndex(0);
+            }}
+            className="flex h-12 w-12 items-center justify-center border border-white/20 bg-black/30 backdrop-blur"
+            aria-label="Clear upload"
+          >
+            <X size={20} />
+          </button>
+        )}
+      </aside>
+
+      <section className="absolute bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-primary/88 px-5 pb-5 pt-4 backdrop-blur-xl">
+        <div className="mb-3">
+          <p className="max-w-[calc(100%-4rem)] truncate text-sm font-semibold">
+            {activeGarment?.title || "Add an item to the feed"}
+          </p>
+          <p className="mt-1 text-xs text-white/55">
+            {[activeGarment?.brand, activeGarment?.price || activeGarment?.domain]
+              .filter(Boolean)
+              .join(" / ") || "Paste a product URL or upload a screenshot"}
+          </p>
+        </div>
+
+        <div className="mb-3 flex gap-2">
+          <button
+            onClick={() => setInputMode("url")}
+            className={`flex h-10 flex-1 items-center justify-center gap-2 border text-sm font-semibold ${
+              inputMode === "url"
+                ? "border-white bg-white text-primary"
+                : "border-white/15 bg-white/5 text-white/75"
+            }`}
+          >
+            <Link2 size={16} />
+            URL
+          </button>
+          <button
+            onClick={() => {
+              setInputMode("upload");
+              fileInputRef.current?.click();
+            }}
+            className={`flex h-10 flex-1 items-center justify-center gap-2 border text-sm font-semibold ${
+              inputMode === "upload"
+                ? "border-white bg-white text-primary"
+                : "border-white/15 bg-white/5 text-white/75"
+            }`}
+          >
+            <ImagePlus size={16} />
+            Upload
           </button>
         </div>
 
-        <div className="card mb-6">
-          <div className="flex gap-2 mb-4">
+        {inputMode === "url" && (
+          <div className="mb-3 flex gap-2">
+            <input
+              type="url"
+              value={productUrl}
+              onChange={(e) => setProductUrl(e.target.value)}
+              placeholder="Paste product URL"
+              className="h-12 min-w-0 flex-1 border border-white/15 bg-white px-4 text-sm text-primary outline-none placeholder:text-stone-400"
+            />
             <button
-              onClick={() => {
-                setInputMode("url");
-                setGarmentImageBase64(null);
-              }}
-              className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition-colors ${
-                inputMode === "url"
-                  ? "bg-primary text-white"
-                  : "bg-gray-100 text-gray-600"
-              }`}
+              onClick={() => scrapeUrl()}
+              disabled={!productUrl.trim() || isScrapingUrl}
+              className="flex h-12 w-12 shrink-0 items-center justify-center bg-white text-primary disabled:opacity-40"
+              aria-label="Import product"
             >
-              Paste URL
-            </button>
-            <button
-              onClick={() => {
-                setInputMode("upload");
-                setGarmentImageUrl(null);
-              }}
-              className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition-colors ${
-                inputMode === "upload"
-                  ? "bg-primary text-white"
-                  : "bg-gray-100 text-gray-600"
-              }`}
-            >
-              Upload
-            </button>
-          </div>
-
-          {inputMode === "url" && (
-            <div className="space-y-3">
-              <input
-                type="url"
-                value={productUrl}
-                onChange={(e) => setProductUrl(e.target.value)}
-                placeholder="Paste product page URL..."
-                className="input"
-              />
-              <button
-                onClick={handleScrapeUrl}
-                disabled={!productUrl.trim() || isScrapingUrl}
-                className="btn-outline w-full flex items-center justify-center gap-2"
-              >
-                {isScrapingUrl ? (
-                  <>
-                    <LoadingSpinner size="sm" />
-                    <span>Fetching...</span>
-                  </>
-                ) : (
-                  "Fetch Product Image"
-                )}
-              </button>
-            </div>
-          )}
-
-          {inputMode === "upload" && (
-            <div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-8 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center hover:border-accent transition-colors"
-              >
-                <svg className="w-8 h-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <span className="text-gray-500 text-sm">Upload photo or screenshot</span>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-            </div>
-          )}
-        </div>
-
-        {hasGarmentImage && garmentPreviewSrc && (
-          <div className="card mb-6">
-            <p className="text-sm text-gray-500 mb-3">Garment Preview</p>
-            <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100">
-              <img
-                src={garmentPreviewSrc}
-                alt="Garment"
-                className="absolute inset-0 h-full w-full object-contain"
-              />
-            </div>
-            <button
-              onClick={() => {
-                setGarmentImageUrl(null);
-                setGarmentImageBase64(null);
-                setProductUrl("");
-              }}
-              className="mt-3 text-sm text-gray-500 underline"
-            >
-              Remove
+              {isScrapingUrl ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <ArrowUp size={18} />
+              )}
             </button>
           </div>
         )}
 
-        {/* How it works — shown when no garment selected */}
-        {!hasGarmentImage && (
-          <div className="mb-6">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">How it works</p>
-            <div className="space-y-3">
-              {[
-                { step: "1", label: "Paste any product URL", sub: "Zara, SHEIN, UNIQLO, any store" },
-                { step: "2", label: "AI generates your look", sub: "Powered by Fashn.ai — ~5 seconds" },
-                { step: "3", label: "Save & share", sub: "Post to IG, send to friends" },
-              ].map(({ step, label, sub }) => (
-                <div key={step} className="flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm">
-                  <span className="w-8 h-8 rounded-full bg-primary text-white text-sm font-bold flex items-center justify-center shrink-0">
-                    {step}
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-primary">{label}</p>
-                    <p className="text-xs text-gray-400">{sub}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 p-4 rounded-2xl bg-accent/10 border border-accent/20">
-              <p className="text-xs text-center text-gray-500">
-                Works with <span className="font-semibold text-primary">Zara · SHEIN · H&M · UNIQLO · Mango</span> and more
-              </p>
-            </div>
-          </div>
-        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
 
         {error && (
-          <p className="text-red-500 text-sm mb-4 text-center">{error}</p>
+          <p className="mb-3 border border-red-300/40 bg-red-950/45 px-3 py-2 text-sm text-red-100">
+            {error}
+          </p>
         )}
 
-        <div className="mt-auto">
-          <button
-            onClick={handleTryOn}
-            disabled={!hasGarmentImage}
-            className="btn-primary w-full"
-          >
-            Try It On ✨
-          </button>
-        </div>
-      </div>
+        <button
+          onClick={handleTryOn}
+          disabled={!activeGarment}
+          className="flex h-12 w-full items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-primary transition disabled:opacity-40"
+        >
+          {activeGarment ? <Play size={18} /> : <RefreshCw size={17} />}
+          {activeGarment ? "Try This On" : "Add a Garment"}
+        </button>
+      </section>
     </main>
+  );
+}
+
+function FeedPlaceholder({ loading = false }: { loading?: boolean }) {
+  return (
+    <article className="relative flex h-dvh snap-start flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_35%,#443833,#171412_62%)] px-8 pb-48 text-center">
+      <div className="mb-5 flex h-20 w-20 items-center justify-center border border-white/20 bg-white/10">
+        {loading ? <LoadingSpinner size="md" /> : <Shirt size={32} />}
+      </div>
+      <h1 className="text-3xl font-semibold tracking-tight">
+        {loading ? "Loading fit feed" : "Swipe into your next look"}
+      </h1>
+      <p className="mt-3 max-w-72 text-sm leading-6 text-white/65">
+        {loading
+          ? "Pulling saved garments into Cloak."
+          : "Paste a product URL or upload a garment to start the feed."}
+      </p>
+    </article>
   );
 }

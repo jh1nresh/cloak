@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
+import { checkRequestRateLimit } from "@/lib/rate-limit";
+import { getServiceSupabase } from "@/lib/supabase";
 import {
   assertPublicHttpUrl,
-  checkRateLimit,
   fetchPublicUrl,
-  getClientIp,
   InputValidationError,
   MAX_SCRAPE_HTML_BYTES,
   readTextWithLimit,
@@ -12,7 +12,7 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
-    const rateLimit = checkRateLimit(getClientIp(request), {
+    const rateLimit = await checkRequestRateLimit(request, {
       keyPrefix: "scrape-garment",
       maxRequests: 30,
       windowMs: 60_000,
@@ -33,7 +33,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
-    const response = await fetchPublicUrl(url, {
+    const sourceUrl = (await assertPublicHttpUrl(url)).toString();
+    const sourceUrlObj = new URL(sourceUrl);
+    const response = await fetchPublicUrl(sourceUrl, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
@@ -130,13 +132,56 @@ export async function POST(request: NextRequest) {
     if (imageUrl.startsWith("//")) {
       imageUrl = "https:" + imageUrl;
     } else if (imageUrl.startsWith("/")) {
-      const urlObj = new URL(url);
+      const urlObj = new URL(sourceUrl);
       imageUrl = urlObj.origin + imageUrl;
     }
 
     const publicImageUrl = await assertPublicHttpUrl(imageUrl);
+    const title = cleanText(
+      $('meta[property="og:title"]').attr("content") ||
+        $('meta[name="twitter:title"]').attr("content") ||
+        $("title").first().text()
+    );
+    const brand = cleanText(
+      $('meta[property="og:site_name"]').attr("content") ||
+        $('[itemprop="brand"]').first().text() ||
+        sourceUrlObj.hostname.replace(/^www\./, "")
+    );
+    const price = cleanText(
+      $('meta[property="product:price:amount"]').attr("content") ||
+        $('[itemprop="price"]').first().attr("content") ||
+        $('[itemprop="price"]').first().text()
+    );
 
-    return NextResponse.json({ imageUrl: publicImageUrl.toString() });
+    const supabase = getServiceSupabase();
+    const { data: garment, error: dbError } = await supabase
+      .from("garments")
+      .upsert(
+        {
+          source_url: sourceUrl,
+          image_url: publicImageUrl.toString(),
+          title,
+          brand,
+          price,
+          domain: sourceUrlObj.hostname.replace(/^www\./, ""),
+        },
+        { onConflict: "source_url" }
+      )
+      .select("*")
+      .single();
+
+    if (dbError || !garment) {
+      console.error("Garment upsert error:", dbError);
+      return NextResponse.json(
+        { error: "Failed to save garment" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      imageUrl: garment.image_url,
+      garment,
+    });
   } catch (error) {
     if (error instanceof InputValidationError) {
       return NextResponse.json(
@@ -151,4 +196,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function cleanText(value: string | undefined) {
+  if (!value) return null;
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  return cleaned || null;
 }

@@ -2,7 +2,7 @@ import dns from "node:dns/promises";
 import net from "node:net";
 import type { NextRequest } from "next/server";
 
-type RateLimitOptions = {
+export type RateLimitOptions = {
   keyPrefix: string;
   maxRequests: number;
   windowMs: number;

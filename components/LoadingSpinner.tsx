@@ -1,13 +1,13 @@
 export default function LoadingSpinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const sizeClasses = {
-    sm: "w-5 h-5 border-2",
-    md: "w-8 h-8 border-3",
-    lg: "w-12 h-12 border-4",
+    sm: "h-4 w-4 border-2",
+    md: "h-7 w-7 border-2",
+    lg: "h-10 w-10 border-2",
   };
 
   return (
     <div
-      className={`${sizeClasses[size]} rounded-full border-accent border-t-transparent animate-spin`}
+      className={`${sizeClasses[size]} animate-spin rounded-full border-primary/25 border-t-primary`}
     />
   );
 }

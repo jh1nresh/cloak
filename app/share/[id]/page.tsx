@@ -2,6 +2,7 @@
 
 import { Metadata } from "next";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { getServiceSupabase } from "@/lib/supabase";
 import type { TryOn } from "@/lib/database.types";
 
@@ -28,7 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const tryon = await getTryOn(id);
 
-  if (!tryon) {
+  if (!tryon || tryon.status !== "completed" || !tryon.result_url) {
     return {
       title: "Try-on not found | Cloak",
     };
@@ -37,11 +38,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://cloak.app";
 
   return {
-    title: "Check out my virtual try-on! | Cloak",
-    description: "See how this looks on me with Cloak virtual try-on. Try it yourself!",
+    title: "Cloak try-on",
+    description: "A virtual try-on created with Cloak.",
     openGraph: {
-      title: "Check out my virtual try-on!",
-      description: "See how this looks on me with Cloak virtual try-on. Try it yourself!",
+      title: "Cloak try-on",
+      description: "A virtual try-on created with Cloak.",
       images: [
         {
           url: tryon.result_url,
@@ -55,8 +56,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: "Check out my virtual try-on!",
-      description: "See how this looks on me with Cloak virtual try-on. Try it yourself!",
+      title: "Cloak try-on",
+      description: "A virtual try-on created with Cloak.",
       images: [tryon.result_url],
     },
   };
@@ -66,42 +67,55 @@ export default async function SharePage({ params }: Props) {
   const { id } = await params;
   const tryon = await getTryOn(id);
 
-  if (!tryon) {
+  if (!tryon || tryon.status !== "completed" || !tryon.result_url) {
     return (
-      <main className="min-h-dvh bg-background px-6 py-8 flex flex-col items-center justify-center">
-        <h1 className="text-xl font-bold text-primary mb-2">Not Found</h1>
-        <p className="text-gray-500 mb-6">This try-on result doesn&apos;t exist.</p>
-        <Link href="/onboarding" className="btn-primary">
-          Create Your Own
-        </Link>
+      <main className="min-h-dvh bg-primary text-white">
+        <div className="flex min-h-dvh items-center justify-center px-5 text-center">
+          <div className="w-full max-w-sm border border-white/15 bg-white/10 p-6 backdrop-blur">
+            <p className="text-sm font-semibold">
+              Result unavailable
+            </p>
+            <p className="mt-2 text-sm text-white/65">
+              This try-on result is not ready to share.
+            </p>
+            <Link
+              href="/onboarding"
+              className="mt-5 flex h-12 w-full items-center justify-center bg-white px-5 text-sm font-semibold text-primary"
+            >
+              Create Your Own
+            </Link>
+          </div>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-dvh bg-background flex flex-col">
-      <div className="flex-1 relative">
-        <img
-          src={tryon.result_url}
-          alt="Virtual try-on result"
-          className="h-full w-full object-contain bg-gray-100"
-        />
-      </div>
+    <main className="relative min-h-dvh overflow-hidden bg-primary text-white">
+      <img
+        src={tryon.result_url}
+        alt="Virtual try-on result"
+        className="absolute inset-0 h-full w-full object-contain p-4 pb-28 pt-16"
+      />
 
-      <div className="p-6 bg-white border-t space-y-4">
-        <div className="text-center">
-          <h1 className="text-xl font-bold text-primary mb-1">
-            Like this look?
-          </h1>
-          <p className="text-gray-500 text-sm">
-            Try it on yourself with Cloak
-          </p>
-        </div>
+      <header className="absolute left-0 right-0 top-0 z-10 px-5 py-5">
+        <p className="text-xs font-semibold uppercase text-white/55">Cloak</p>
+        <p className="mt-1 text-lg font-semibold">Shared try-on</p>
+      </header>
 
-        <Link href="/onboarding" className="btn-primary w-full block text-center">
-          Try this on yourself
+      <section className="absolute bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-primary/88 px-5 pb-5 pt-4 backdrop-blur-xl">
+        <p className="text-sm font-semibold">Make it yours</p>
+        <p className="mt-1 text-sm text-white/65">
+          Create your own fit feed from a single photo.
+        </p>
+        <Link
+          href="/onboarding"
+          className="mt-4 flex h-12 w-full items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-primary"
+        >
+          Try This Look
+          <ArrowRight size={18} />
         </Link>
-      </div>
+      </section>
     </main>
   );
 }

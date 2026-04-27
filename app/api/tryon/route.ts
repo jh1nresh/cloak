@@ -1,90 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { getServiceSupabase } from "@/lib/supabase";
-import { uploadWithWatermark } from "@/lib/cloudinary";
-import { v4 as uuidv4 } from "uuid";
+import { submitFashnTryOn } from "@/lib/fashn";
+import { checkRequestRateLimit } from "@/lib/rate-limit";
 import {
   assertAllowedContentLength,
   assertPublicHttpUrl,
   assertValidImageDataUrl,
-  checkRateLimit,
-  getClientIp,
   InputValidationError,
   MAX_GARMENT_DATA_URL_BYTES,
 } from "@/lib/security";
 
-const FASHN_API_URL = "https://api.fashn.ai/v1";
 const MAX_TRYON_REQUEST_BYTES = MAX_GARMENT_DATA_URL_BYTES + 512 * 1024;
-
-async function runFashnTryOn(
-  modelImage: string,
-  garmentImage: string
-): Promise<string> {
-  const apiKey = process.env.FASHN_API_KEY;
-  if (!apiKey) throw new Error("FASHN_API_KEY not configured");
-
-  // Submit job
-  const submitRes = await fetch(`${FASHN_API_URL}/run`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model_name: "tryon-v1.6",
-      inputs: {
-        model_image: modelImage,
-        garment_image: garmentImage,
-        category: "auto",
-        mode: "performance", // 5s — fastest
-        output_format: "jpeg",
-        moderation_level: "permissive",
-      },
-    }),
-  });
-
-  if (!submitRes.ok) {
-    const err = await submitRes.text();
-    throw new Error(`Fashn submit failed: ${submitRes.status} ${err}`);
-  }
-
-  const { id } = await submitRes.json();
-  if (!id) throw new Error("No prediction ID returned");
-
-  // Poll until completed (max 60s)
-  const maxAttempts = 30;
-  const pollInterval = 2000;
-
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise((r) => setTimeout(r, pollInterval));
-
-    const statusRes = await fetch(`${FASHN_API_URL}/status/${id}`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-
-    if (!statusRes.ok) continue;
-
-    const data = await statusRes.json();
-
-    if (data.status === "completed") {
-      const output = data.output;
-      if (Array.isArray(output) && output[0]) return output[0];
-      if (typeof output === "string") return output;
-      throw new Error("Unexpected output format");
-    }
-
-    if (data.status === "failed") {
-      throw new Error(`Fashn failed: ${data.error || "unknown error"}`);
-    }
-
-    // starting | in_queue | processing → keep polling
-  }
-
-  throw new Error("Fashn timed out after 60s");
-}
 
 export async function POST(request: NextRequest) {
   try {
-    const rateLimit = checkRateLimit(getClientIp(request), {
+    const rateLimit = await checkRequestRateLimit(request, {
       keyPrefix: "tryon",
       maxRequests: 6,
       windowMs: 60_000,
@@ -101,7 +32,7 @@ export async function POST(request: NextRequest) {
 
     assertAllowedContentLength(request, MAX_TRYON_REQUEST_BYTES);
 
-    const { userId, avatarUrl, garmentImageUrl, garmentImageBase64 } =
+    const { userId, avatarUrl, garmentId, garmentImageUrl, garmentImageBase64 } =
       await request.json();
 
     if (!userId || typeof userId !== "string") {
@@ -119,6 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (
+      (garmentId && typeof garmentId !== "string") ||
       (garmentImageUrl && typeof garmentImageUrl !== "string") ||
       (garmentImageBase64 && typeof garmentImageBase64 !== "string")
     ) {
@@ -128,7 +60,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!garmentImageUrl && !garmentImageBase64) {
+    if (!garmentId && !garmentImageUrl && !garmentImageBase64) {
       return NextResponse.json(
         { error: "Garment image is required" },
         { status: 400 }
@@ -136,9 +68,6 @@ export async function POST(request: NextRequest) {
     }
 
     await assertPublicHttpUrl(avatarUrl);
-    if (garmentImageUrl) {
-      await assertPublicHttpUrl(garmentImageUrl);
-    }
     if (garmentImageBase64) {
       assertValidImageDataUrl(garmentImageBase64);
     }
@@ -161,7 +90,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const garmentImage = garmentImageBase64 || garmentImageUrl;
+    let storedGarmentId: string | null = null;
+    let storedGarmentUrl: string | null = garmentImageUrl || null;
+
+    if (garmentId) {
+      const { data: garment, error: garmentError } = await supabase
+        .from("garments")
+        .select("id, image_url")
+        .eq("id", garmentId)
+        .single();
+
+      if (garmentError || !garment) {
+        return NextResponse.json(
+          { error: "Garment not found" },
+          { status: 404 }
+        );
+      }
+
+      storedGarmentId = garment.id;
+      storedGarmentUrl = garment.image_url;
+    }
+
+    if (storedGarmentUrl) {
+      await assertPublicHttpUrl(storedGarmentUrl);
+    }
+
+    const garmentImage = garmentImageBase64 || storedGarmentUrl;
     if (!garmentImage) {
       return NextResponse.json(
         { error: "Garment image is required" },
@@ -169,27 +123,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const resultImageUrl = await runFashnTryOn(avatarUrl, garmentImage);
-
-    const tryonId = uuidv4();
-    const watermarkedUrl = await uploadWithWatermark(resultImageUrl, tryonId);
-
-    const { error: dbError } = await supabase.from("tryons").insert({
+    const tryonId = randomUUID();
+    const { error: insertError } = await supabase.from("tryons").insert({
       id: tryonId,
       user_id: userId,
-      garment_url: garmentImageUrl || null,
-      result_url: watermarkedUrl,
+      garment_id: storedGarmentId,
+      garment_url: storedGarmentUrl,
+      result_url: null,
+      status: "queued",
     });
 
-    if (dbError) {
-      console.error("Database error:", dbError);
+    if (insertError) {
+      console.error("Database error:", insertError);
       return NextResponse.json(
-        { error: "Failed to save try-on result" },
+        { error: "Failed to create try-on job" },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ tryonId, resultImageUrl: watermarkedUrl });
+    let predictionId: string;
+    try {
+      predictionId = await submitFashnTryOn(avatarUrl, garmentImage);
+    } catch (error) {
+      await supabase
+        .from("tryons")
+        .update({
+          status: "failed",
+          error_message:
+            error instanceof Error ? error.message : "Failed to submit try-on",
+        })
+        .eq("id", tryonId);
+
+      throw error;
+    }
+
+    const { error: updateError } = await supabase.from("tryons").update({
+      status: "processing",
+      fashn_prediction_id: predictionId,
+      error_message: null,
+    }).eq("id", tryonId);
+
+    if (updateError) {
+      console.error("Database error:", updateError);
+      return NextResponse.json(
+        { error: "Failed to save try-on job" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      id: tryonId,
+      tryonId,
+      status: "processing",
+    });
   } catch (error) {
     if (error instanceof InputValidationError) {
       return NextResponse.json(
@@ -204,25 +190,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// GET handler for fetching a single tryon result
-export async function GET(request: NextRequest) {
-  const id = request.nextUrl.pathname.split("/").pop();
-  if (!id) {
-    return NextResponse.json({ error: "ID required" }, { status: 400 });
-  }
-
-  const supabase = getServiceSupabase();
-  const { data, error } = await supabase
-    .from("tryons")
-    .select("id, result_url, created_at")
-    .eq("id", id)
-    .single();
-
-  if (error || !data) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  return NextResponse.json(data);
 }

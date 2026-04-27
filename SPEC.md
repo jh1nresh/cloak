@@ -1,16 +1,35 @@
-# Spec: Cloak V1 — Virtual Try-On PWA
+# Spec: Cloak V2 — Native Swipe Try-On
 
 ## Goal
-Build a mobile-first PWA where users upload a selfie + clothing item and get an AI-generated try-on image they can share.
+Build a native iOS-first try-on product where users save clothing from anywhere,
+swipe a vertical garment feed, and generate AI try-on images from their own fit
+photo. The web PWA remains as a fallback and backend surface.
 
 ## Tech Stack
-- **Frontend:** Next.js 14 (App Router) + Tailwind CSS
-- **PWA:** next-pwa for installability
+- **Native app:** SwiftUI iOS app + Share Extension
+- **Web fallback:** Next.js App Router + Tailwind CSS
+- **PWA:** Web app manifest + lightweight service worker
 - **Backend:** Next.js API routes
 - **Try-on AI:** Fashn.ai try-on API
 - **Storage:** Supabase (user avatar + try-on history)
 - **Image hosting:** Cloudinary (output images with watermark)
 - **Deployment:** Vercel-ready
+
+## iOS App
+
+### `Cloak`
+- SwiftUI app with onboarding, vertical paging garment feed, product link import,
+  camera-roll garment upload, try-on submission, and result polling.
+- Opens `cloak://tryon?url=...` and imports the shared product URL.
+- Opens `cloak://tryon?sharedImage=1` and imports the image saved by the Share Extension.
+- Uses the Next API only. It does not connect directly to Supabase, Railway, or
+  service-role credentials.
+
+### `CloakShareExtension`
+- Accepts shared web URLs, plain text containing URLs, and one shared image.
+- URL/text shares open the app with the product URL.
+- Image shares are copied into the shared app group and inserted as a local
+  garment when the app opens.
 
 ## Pages & Routes
 
@@ -25,13 +44,15 @@ Build a mobile-first PWA where users upload a selfie + clothing item and get an 
 - Design: Clean, feminine aesthetic. White + soft pink/nude tones.
 
 ### `/tryon` — Try On
+- Vertical snap feed of saved garments
 - Top: small avatar preview thumbnail (tap to change)
 - Input area: 
   - Option A: "Paste product URL" text input + fetch button (scrapes product image)
   - Option B: "Upload photo / screenshot" file upload
 - "Try It On" CTA button (disabled until garment image ready)
-- Shows loading state while Fashn.ai processes (~5-30s)
+- Shows loading state while Fashn.ai processes asynchronously (~5-30s)
 - On success → redirect to `/result/[id]`
+- Supports `/tryon?url=...` for PWA share target links
 
 ### `/result/[id]` — Result
 - Full-screen try-on image
@@ -58,18 +79,22 @@ Build a mobile-first PWA where users upload a selfie + clothing item and get an 
 - Accepts: { url: string }
 - Scrapes product page with cheerio/fetch
 - Extracts main product image (largest image on page)
-- Returns: { imageUrl }
+- Upserts a garment record
+- Returns: { imageUrl, garment }
+
+### `GET /api/garments`
+- Returns recent saved garments for the vertical feed
 
 ### `POST /api/tryon`
 - Accepts: { avatarUrl, garmentImageUrl or garmentImageBase64 }
-- Calls Fashn.ai try-on API
-- Polls until complete
-- Uploads result to Cloudinary with watermark
-- Saves to Supabase (tryons table)
-- Returns: { tryonId, resultImageUrl }
+- Creates a Supabase try-on job
+- Calls Fashn.ai try-on API and stores the prediction id
+- Returns immediately: { tryonId, status }
 
 ### `GET /api/tryon/[id]`
-- Returns try-on record for share page
+- Returns try-on record
+- Polls Fashn.ai when status is processing
+- Finalizes completed jobs by uploading the result to Cloudinary with watermark
 
 ## Database Schema (Supabase)
 
@@ -87,9 +112,35 @@ create table users (
 create table tryons (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id),
+  garment_id uuid references garments(id),
   garment_url text,
-  result_url text not null,
-  created_at timestamptz default now()
+  result_url text,
+  status text not null default 'completed'
+    check (status in ('queued', 'processing', 'finalizing', 'completed', 'failed')),
+  fashn_prediction_id text,
+  error_message text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- garments table
+create table garments (
+  id uuid primary key default gen_random_uuid(),
+  source_url text not null unique,
+  image_url text not null,
+  title text,
+  brand text,
+  price text,
+  domain text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- rate_limits table
+create table rate_limits (
+  key text primary key,
+  count integer not null default 0,
+  reset_at timestamptz not null
 );
 ```
 
@@ -141,8 +192,9 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 ## Acceptance Criteria
 - [ ] `/onboarding` captures photo and saves avatar to Supabase
 - [ ] `/tryon` accepts URL input and scrapes garment image
+- [ ] URL-scraped garments are saved and shown in the feed
 - [ ] `/tryon` accepts direct image upload
-- [ ] Fashn.ai API call works and returns try-on image
+- [ ] Fashn.ai API call creates async job and result polling completes
 - [ ] `/result/[id]` shows result with share + download buttons
 - [ ] `/share/[id]` shows result with "try it yourself" CTA
 - [ ] OG meta tags on share page for good link previews
@@ -151,11 +203,10 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - [ ] `tsc --noEmit` passes
 - [ ] `.env.local.example` file included with all required vars
 
-## Out of Scope (V1)
+## Out of Scope (V2)
 - Authentication / login
 - Size recommendations
 - Trust scores / ZK reviews
 - 3D avatar
-- Native app / App Clip
 - Payment processing
 - Analytics

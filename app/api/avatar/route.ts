@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
+import { checkRequestRateLimit } from "@/lib/rate-limit";
 import { getServiceSupabase } from "@/lib/supabase";
-import { v4 as uuidv4 } from "uuid";
 import {
   assertAllowedContentLength,
   assertValidImageBytes,
   assertValidImageFile,
-  checkRateLimit,
-  getClientIp,
   InputValidationError,
   MAX_AVATAR_BYTES,
 } from "@/lib/security";
@@ -15,7 +14,7 @@ const MAX_AVATAR_REQUEST_BYTES = MAX_AVATAR_BYTES + 512 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
-    const rateLimit = checkRateLimit(getClientIp(request), {
+    const rateLimit = await checkRequestRateLimit(request, {
       keyPrefix: "avatar",
       maxRequests: 12,
       windowMs: 60_000,
@@ -47,7 +46,7 @@ export async function POST(request: NextRequest) {
     const weightKg = parseOptionalNumber(weight, 25, 350);
 
     const supabase = getServiceSupabase();
-    const userId = uuidv4();
+    const userId = randomUUID();
     const fileName = `${userId}/avatar${extensionForContentType(photo.type)}`;
 
     const arrayBuffer = await photo.arrayBuffer();

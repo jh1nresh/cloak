@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Cloak",
+    "slug": "cloak-ios",
+    "scheme": "cloak",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.cloak.mobile",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Cloak uses your photos to create fit profiles and upload garment screenshots.",
+        "NSPhotoLibraryAddUsageDescription": "Cloak saves generated try-on images to your photo library."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

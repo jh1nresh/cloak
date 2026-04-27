@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cloak
 
-## Getting Started
+Mobile-first virtual try-on product with a Next.js backend, PWA fallback, and
+native SwiftUI iOS client.
 
-First, run the development server:
+Users create an avatar from a selfie, provide a garment image by URL or upload,
+then receive an AI-generated try-on result that can be saved or shared.
+Product URLs imported into Cloak are saved as garments and become part of the
+vertical fit feed. The native iOS app adds a Share Extension so users can send
+product links or images into Cloak from the iOS share sheet.
+
+## Stack
+
+- Next.js App Router
+- Tailwind CSS
+- Supabase for avatar/result data
+- Fashn.ai for try-on generation
+- Cloudinary for watermarked output images
+- Web app manifest + lightweight service worker for installability
+- Web Share Target for opening shared product URLs into `/tryon`
+- SwiftUI iOS app + Share Extension in `ios/`
+
+## Setup
 
 ```bash
+npm install
+cp .env.local.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Native iOS
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd ios
+xcodegen generate
+xcodebuild -project Cloak.xcodeproj -scheme Cloak -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.4' CODE_SIGNING_ALLOWED=NO build
+```
 
-## Learn More
+The iOS app defaults to `http://localhost:3002`; update
+`ios/CloakApp/Info.plist` for a deployed API or physical-device testing.
 
-To learn more about Next.js, take a look at the following resources:
+## Environment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Required variables are listed in `.env.local.example`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Before using the async try-on and shared rate limit flow, apply the Supabase
+migration in `supabase/migrations`.
 
-## Deploy on Vercel
+## Verification
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run lint
+npm test
+npx tsc --noEmit
+npm run build
+```
