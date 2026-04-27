@@ -1,8 +1,8 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 type InputMode = "url" | "upload";
@@ -141,7 +141,11 @@ export default function TryOnPage() {
             onClick={() => router.push("/onboarding")}
             className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-accent hover:border-primary transition-colors"
           >
-            <Image src={avatarUrl} alt="Your avatar" fill className="object-cover" />
+            <img
+              src={avatarUrl}
+              alt="Your avatar"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
           </button>
         </div>
 
@@ -227,11 +231,10 @@ export default function TryOnPage() {
           <div className="card mb-6">
             <p className="text-sm text-gray-500 mb-3">Garment Preview</p>
             <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100">
-              <Image
+              <img
                 src={garmentPreviewSrc}
                 alt="Garment"
-                fill
-                className="object-contain"
+                className="absolute inset-0 h-full w-full object-contain"
               />
             </div>
             <button

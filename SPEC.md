@@ -7,7 +7,7 @@ Build a mobile-first PWA where users upload a selfie + clothing item and get an 
 - **Frontend:** Next.js 14 (App Router) + Tailwind CSS
 - **PWA:** next-pwa for installability
 - **Backend:** Next.js API routes
-- **Try-on AI:** Replicate API → IDM-VTON model
+- **Try-on AI:** Fashn.ai try-on API
 - **Storage:** Supabase (user avatar + try-on history)
 - **Image hosting:** Cloudinary (output images with watermark)
 - **Deployment:** Vercel-ready
@@ -30,7 +30,7 @@ Build a mobile-first PWA where users upload a selfie + clothing item and get an 
   - Option A: "Paste product URL" text input + fetch button (scrapes product image)
   - Option B: "Upload photo / screenshot" file upload
 - "Try It On" CTA button (disabled until garment image ready)
-- Shows loading state while Replicate processes (~20-30s)
+- Shows loading state while Fashn.ai processes (~5-30s)
 - On success → redirect to `/result/[id]`
 
 ### `/result/[id]` — Result
@@ -62,7 +62,7 @@ Build a mobile-first PWA where users upload a selfie + clothing item and get an 
 
 ### `POST /api/tryon`
 - Accepts: { avatarUrl, garmentImageUrl or garmentImageBase64 }
-- Calls Replicate IDM-VTON API
+- Calls Fashn.ai try-on API
 - Polls until complete
 - Uploads result to Cloudinary with watermark
 - Saves to Supabase (tryons table)
@@ -93,36 +93,33 @@ create table tryons (
 );
 ```
 
-## Replicate Integration
+## Fashn.ai Integration
 
-Model: `cuuupid/idm-vton` on Replicate
+Model: `tryon-v1.6`
 
 ```typescript
-import Replicate from "replicate";
-
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-});
-
-const output = await replicate.run(
-  "cuuupid/idm-vton:c871bb9b046607b680449ecbae55fd8c6d945e0a1948644bf2361b3d021d3ff4",
-  {
-    input: {
-      human_img: avatarImageUrl,
-      garm_img: garmentImageUrl,
-      garment_des: "clothing item",
-      is_checked: true,
-      is_checked_crop: false,
-      denoise_steps: 30,
-      seed: 42,
+const response = await fetch("https://api.fashn.ai/v1/run", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${process.env.FASHN_API_KEY}`,
+  },
+  body: JSON.stringify({
+    model_name: "tryon-v1.6",
+    inputs: {
+      model_image: avatarImageUrl,
+      garment_image: garmentImageUrl,
+      category: "auto",
+      mode: "performance",
+      output_format: "jpeg",
     },
-  }
-);
+  }),
+});
 ```
 
 ## Environment Variables (.env.local)
 ```
-REPLICATE_API_TOKEN=your_token_here
+FASHN_API_KEY=your_fashn_api_key_here
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
@@ -145,7 +142,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - [ ] `/onboarding` captures photo and saves avatar to Supabase
 - [ ] `/tryon` accepts URL input and scrapes garment image
 - [ ] `/tryon` accepts direct image upload
-- [ ] Replicate API call works and returns try-on image
+- [ ] Fashn.ai API call works and returns try-on image
 - [ ] `/result/[id]` shows result with share + download buttons
 - [ ] `/share/[id]` shows result with "try it yourself" CTA
 - [ ] OG meta tags on share page for good link previews

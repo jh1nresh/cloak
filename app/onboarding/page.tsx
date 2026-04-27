@@ -1,8 +1,8 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import CameraCapture from "@/components/CameraCapture";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
@@ -111,7 +111,11 @@ export default function OnboardingPage() {
           <div className="flex-1 flex flex-col">
             <div className="flex justify-center mb-8">
               <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-accent">
-                <Image src={photoData} alt="Your photo" fill className="object-cover" />
+                <img
+                  src={photoData}
+                  alt="Your photo"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
               </div>
             </div>
             <div className="space-y-4 mb-8">

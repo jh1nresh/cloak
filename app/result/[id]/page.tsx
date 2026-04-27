@@ -1,8 +1,8 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 interface TryOnResult {
@@ -92,12 +92,10 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
   return (
     <main className="min-h-dvh bg-background flex flex-col">
       <div className="flex-1 relative">
-        <Image
+        <img
           src={result.result_url}
           alt="Your try-on result"
-          fill
-          className="object-contain bg-gray-100"
-          priority
+          className="h-full w-full object-contain bg-gray-100"
         />
       </div>
 

@@ -1,15 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
+import {
+  assertPublicHttpUrl,
+  checkRateLimit,
+  fetchPublicUrl,
+  getClientIp,
+  InputValidationError,
+  MAX_SCRAPE_HTML_BYTES,
+  readTextWithLimit,
+} from "@/lib/security";
 
 export async function POST(request: NextRequest) {
   try {
+    const rateLimit = checkRateLimit(getClientIp(request), {
+      keyPrefix: "scrape-garment",
+      maxRequests: 30,
+      windowMs: 60_000,
+    });
+    if (!rateLimit.ok) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
     const { url } = await request.json();
 
-    if (!url) {
+    if (!url || typeof url !== "string") {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
-    const response = await fetch(url, {
+    const response = await fetchPublicUrl(url, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
@@ -25,7 +49,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const html = await response.text();
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && !contentType.toLowerCase().includes("text/html")) {
+      return NextResponse.json(
+        { error: "URL did not return HTML" },
+        { status: 400 }
+      );
+    }
+
+    const html = await readTextWithLimit(response, MAX_SCRAPE_HTML_BYTES);
     const $ = cheerio.load(html);
 
     let imageUrl: string | null = null;
@@ -102,8 +134,17 @@ export async function POST(request: NextRequest) {
       imageUrl = urlObj.origin + imageUrl;
     }
 
-    return NextResponse.json({ imageUrl });
+    const publicImageUrl = await assertPublicHttpUrl(imageUrl);
+
+    return NextResponse.json({ imageUrl: publicImageUrl.toString() });
   } catch (error) {
+    if (error instanceof InputValidationError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
+
     console.error("Scrape error:", error);
     return NextResponse.json(
       { error: "Failed to scrape product page" },

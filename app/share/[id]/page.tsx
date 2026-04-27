@@ -1,5 +1,6 @@
+/* eslint-disable @next/next/no-img-element */
+
 import { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { getServiceSupabase } from "@/lib/supabase";
 import type { TryOn } from "@/lib/database.types";
@@ -80,12 +81,10 @@ export default async function SharePage({ params }: Props) {
   return (
     <main className="min-h-dvh bg-background flex flex-col">
       <div className="flex-1 relative">
-        <Image
+        <img
           src={tryon.result_url}
           alt="Virtual try-on result"
-          fill
-          className="object-contain bg-gray-100"
-          priority
+          className="h-full w-full object-contain bg-gray-100"
         />
       </div>
 
