@@ -39,15 +39,19 @@ struct APIClient {
         return response.garments
     }
 
-    func importGarment(from sourceURL: String) async throws -> Garment {
-        let body = try encoder.encode(["url": sourceURL])
+    func importGarment(from sourceURL: String, userId: String?) async throws -> Garment {
+        var payload = ["url": sourceURL]
+        if let userId {
+            payload["userId"] = userId
+        }
+        let body = try encoder.encode(payload)
         let response: ScrapeGarmentResponse = try await send(
             path: "/api/scrape-garment",
             method: "POST",
             body: body,
             contentType: "application/json"
         )
-        return response.garment
+        return response.garment.attaching(savedItemId: response.savedItem?.id)
     }
 
     func createAvatar(imageData: Data, contentType: String, height: Int? = nil, weight: Int? = nil) async throws -> FitProfile {
@@ -86,6 +90,9 @@ struct APIClient {
 
         if let id = garment.id {
             payload["garmentId"] = id.uuidString
+            if let savedItemId = garment.savedItemId {
+                payload["savedItemId"] = savedItemId.uuidString
+            }
         } else if garment.isLocal, let data = garment.localImageData {
             let contentType = garment.localContentType ?? "image/jpeg"
             payload["garmentImageBase64"] = "data:\(contentType);base64,\(data.base64EncodedString())"
@@ -101,6 +108,33 @@ struct APIClient {
             contentType: "application/json"
         )
         return response.tryonId
+    }
+
+    func recordTasteEvent(
+        userId: String,
+        garment: Garment,
+        eventType: String,
+        metadata: [String: String?] = [:]
+    ) async throws {
+        var payload: [String: Any] = [
+            "userId": userId,
+            "eventType": eventType,
+            "metadata": metadata.compactMapValues { $0 }
+        ]
+        if let id = garment.id {
+            payload["garmentId"] = id.uuidString
+        }
+        if let savedItemId = garment.savedItemId {
+            payload["savedItemId"] = savedItemId.uuidString
+        }
+
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let _: TasteEventResponse = try await send(
+            path: "/api/taste-events",
+            method: "POST",
+            body: body,
+            contentType: "application/json"
+        )
     }
 
     func fetchTryOn(id: UUID) async throws -> TryOn {

@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as cheerio from "cheerio";
 import { checkRequestRateLimit } from "@/lib/rate-limit";
-import { upsertGarment } from "@/lib/db";
+import {
+  createSavedItem,
+  getUserById,
+  insertItemImages,
+  upsertGarment,
+} from "@/lib/db";
+import { analyzeProductImages } from "@/lib/product-analysis";
 import {
   assertPublicHttpUrl,
   fetchPublicUrl,
@@ -27,10 +33,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { url } = await request.json();
+    const { url, userId } = await request.json();
 
     if (!url || typeof url !== "string") {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
+    }
+
+    if (userId && typeof userId !== "string") {
+      return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
+    }
+
+    if (userId) {
+      const user = await getUserById(userId);
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
     }
 
     const sourceUrl = (await assertPublicHttpUrl(url)).toString();
@@ -60,83 +77,18 @@ export async function POST(request: NextRequest) {
     }
 
     const html = await readTextWithLimit(response, MAX_SCRAPE_HTML_BYTES);
-    const $ = cheerio.load(html);
+    const analysis = await analyzeProductImages({ html, sourceUrl });
+    const selectedImage = analysis.selectedImage;
 
-    let imageUrl: string | null = null;
-
-    const ogImage = $('meta[property="og:image"]').attr("content");
-    if (ogImage) {
-      imageUrl = ogImage;
-    }
-
-    if (!imageUrl) {
-      const twitterImage = $('meta[name="twitter:image"]').attr("content");
-      if (twitterImage) {
-        imageUrl = twitterImage;
-      }
-    }
-
-    if (!imageUrl) {
-      const productImage = $(
-        '[data-testid="product-image"], .product-image img, .pdp-image img, #product-image img, .gallery-image img'
-      )
-        .first()
-        .attr("src");
-      if (productImage) {
-        imageUrl = productImage;
-      }
-    }
-
-    if (!imageUrl) {
-      const images = $("img").toArray();
-      let largestImage = { url: "", size: 0 };
-
-      for (const img of images) {
-        const src = $(img).attr("src") || $(img).attr("data-src");
-        const width = parseInt($(img).attr("width") || "0");
-        const height = parseInt($(img).attr("height") || "0");
-        const size = width * height;
-
-        if (src && size > largestImage.size && !src.includes("logo") && !src.includes("icon")) {
-          largestImage = { url: src, size };
-        }
-      }
-
-      if (largestImage.url) {
-        imageUrl = largestImage.url;
-      }
-    }
-
-    if (!imageUrl) {
-      const firstLargeImage = $('img[width], img[height]')
-        .filter((_, el) => {
-          const w = parseInt($(el).attr("width") || "0");
-          const h = parseInt($(el).attr("height") || "0");
-          return w > 200 || h > 200;
-        })
-        .first()
-        .attr("src");
-
-      if (firstLargeImage) {
-        imageUrl = firstLargeImage;
-      }
-    }
-
-    if (!imageUrl) {
+    if (!selectedImage) {
       return NextResponse.json(
         { error: "Could not find product image" },
         { status: 400 }
       );
     }
 
-    if (imageUrl.startsWith("//")) {
-      imageUrl = "https:" + imageUrl;
-    } else if (imageUrl.startsWith("/")) {
-      const urlObj = new URL(sourceUrl);
-      imageUrl = urlObj.origin + imageUrl;
-    }
-
-    const publicImageUrl = await assertPublicHttpUrl(imageUrl);
+    const publicImageUrl = await assertPublicHttpUrl(selectedImage.url);
+    const $ = cheerio.load(html);
     const title = cleanText(
       $('meta[property="og:title"]').attr("content") ||
         $('meta[name="twitter:title"]').attr("content") ||
@@ -160,6 +112,8 @@ export async function POST(request: NextRequest) {
       brand,
       price,
       domain: sourceUrlObj.hostname.replace(/^www\./, ""),
+      imageClassification: selectedImage.classification,
+      recommendedPipeline: analysis.recommendedPipeline,
     });
 
     if (!garment) {
@@ -169,9 +123,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let savedItem = null;
+    let itemImages = null;
+    if (userId) {
+      savedItem = await createSavedItem({
+        userId,
+        sourceType: "url",
+        sourceUrl,
+        sourceDomain: sourceUrlObj.hostname.replace(/^www\./, ""),
+        title,
+        brand,
+        price,
+        status: "ready",
+      });
+
+      if (savedItem) {
+        itemImages = await insertItemImages(
+          savedItem.id,
+          analysis.candidates.slice(0, 12).map((candidate) => ({
+            imageUrl: candidate.url,
+            width: candidate.width,
+            height: candidate.height,
+            rank: candidate.rank,
+            classification: candidate.classification,
+            selectedForGeneration: candidate.url === selectedImage.url,
+          }))
+        );
+      }
+    }
+
     return NextResponse.json({
       imageUrl: garment.image_url,
       garment,
+      savedItem,
+      itemImages,
+      selectedImage,
+      recommendedPipeline: analysis.recommendedPipeline,
     });
   } catch (error) {
     if (error instanceof InputValidationError) {

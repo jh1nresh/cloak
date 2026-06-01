@@ -31,6 +31,21 @@ struct FeedView: View {
                                     await store.tryOn(garment)
                                 }
                             },
+                            onSave: {
+                                Task {
+                                    await store.save(garment)
+                                }
+                            },
+                            onSkip: {
+                                Task {
+                                    await store.skip(garment)
+                                }
+                            },
+                            onBuy: {
+                                Task {
+                                    await store.buy(garment)
+                                }
+                            },
                             onImport: {
                                 showImportField = true
                             },
@@ -90,6 +105,9 @@ struct GarmentCard<UploadPicker: View>: View {
     let garment: Garment
     let isLoading: Bool
     let onTryOn: () -> Void
+    let onSave: () -> Void
+    let onSkip: () -> Void
+    let onBuy: () -> Void
     let onImport: () -> Void
     @ViewBuilder let uploadPicker: () -> UploadPicker
 
@@ -121,8 +139,26 @@ struct GarmentCard<UploadPicker: View>: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.78))
 
+                    if let pipeline = garment.recommendedPipeline {
+                        Text(pipeline == .modelSwap ? "Model becomes you" : "Try-on fallback")
+                            .font(.caption2.weight(.bold))
+                            .tracking(1.5)
+                            .textCase(.uppercase)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 6)
+                            .background(.white.opacity(0.1))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white.opacity(0.14)))
+                    }
+
                     Button(action: onTryOn) {
-                        Label(isLoading ? "Working" : "Try on", systemImage: "sparkles")
+                        Label(
+                            isLoading
+                                ? "Working"
+                                : garment.recommendedPipeline == .modelSwap
+                                    ? "Make model me"
+                                    : "Try on",
+                            systemImage: "sparkles"
+                        )
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
@@ -134,6 +170,17 @@ struct GarmentCard<UploadPicker: View>: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 VStack(spacing: 16) {
+                    Button(action: onSave) {
+                        FeedIconButton(systemImage: "heart", title: "Save")
+                    }
+                    Button(action: onSkip) {
+                        FeedIconButton(systemImage: "hand.thumbsdown", title: "Skip")
+                    }
+                    if garment.sourceUrl != nil {
+                        Button(action: onBuy) {
+                            FeedIconButton(systemImage: "bag", title: "Buy")
+                        }
+                    }
                     Button(action: onImport) {
                         FeedIconButton(systemImage: "link.badge.plus", title: "Link")
                     }

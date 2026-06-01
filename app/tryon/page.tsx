@@ -5,13 +5,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUp,
-  ExternalLink,
+  Heart,
   ImagePlus,
   Link2,
   Loader2,
   Play,
   RefreshCw,
+  ShoppingBag,
   Shirt,
+  ThumbsDown,
   UserRound,
   X,
 } from "lucide-react";
@@ -27,8 +29,19 @@ type FeedGarment = {
   price: string | null;
   source_url: string | null;
   domain: string | null;
+  image_classification?: "on_model" | "flat_product" | "editorial" | "logo" | "unknown";
+  recommended_pipeline?: "model_swap" | "tryon";
+  saved_item_id?: string | null;
   isLocal?: boolean;
 };
+
+type TasteEventType =
+  | "save"
+  | "skip"
+  | "buy_click"
+  | "share"
+  | "regenerate"
+  | "compare_original";
 
 export default function TryOnPage() {
   const router = useRouter();
@@ -120,7 +133,10 @@ export default function TryOnPage() {
       const res = await fetch("/api/scrape-garment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: urlToScrape }),
+        body: JSON.stringify({
+          url: urlToScrape,
+          userId: userId || localStorage.getItem("userId"),
+        }),
       });
 
       if (!res.ok) {
@@ -128,7 +144,10 @@ export default function TryOnPage() {
       }
 
       const data = await res.json();
-      const garment = data.garment as FeedGarment;
+      const garment = {
+        ...(data.garment as FeedGarment),
+        saved_item_id: data.savedItem?.id || null,
+      };
       setGarments((current) => [
         garment,
         ...current.filter((item) => item.id !== garment.id),
@@ -182,6 +201,7 @@ export default function TryOnPage() {
           garmentId: activeGarment.id,
           garmentImageUrl: activeGarment.isLocal ? null : activeGarment.image_url,
           garmentImageBase64: activeGarment.isLocal ? activeGarment.image_url : null,
+          savedItemId: activeGarment.saved_item_id || null,
         }),
       });
 
@@ -204,6 +224,52 @@ export default function TryOnPage() {
 
     const nextIndex = Math.round(element.scrollTop / element.clientHeight);
     setActiveIndex(Math.min(Math.max(nextIndex, 0), Math.max(feedItems.length - 1, 0)));
+  };
+
+  const moveToIndex = (index: number) => {
+    const element = feedRef.current;
+    const boundedIndex = Math.min(
+      Math.max(index, 0),
+      Math.max(feedItems.length - 1, 0)
+    );
+    setActiveIndex(boundedIndex);
+    requestAnimationFrame(() => {
+      element?.scrollTo({
+        top: boundedIndex * element.clientHeight,
+        behavior: "smooth",
+      });
+    });
+  };
+
+  const recordTasteEvent = async (
+    eventType: TasteEventType,
+    garment = activeGarment,
+    metadata: Record<string, unknown> = {}
+  ) => {
+    if (!userId || !garment) return;
+
+    try {
+      await fetch("/api/taste-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          savedItemId: garment.saved_item_id || null,
+          garmentId: garment.id,
+          eventType,
+          metadata: {
+            title: garment.title,
+            brand: garment.brand,
+            price: garment.price,
+            domain: garment.domain,
+            recommendedPipeline: garment.recommended_pipeline,
+            ...metadata,
+          },
+        }),
+      });
+    } catch (err) {
+      console.error("Taste event error:", err);
+    }
   };
 
   if (isCheckingProfile || !avatarUrl) {
@@ -294,6 +360,25 @@ export default function TryOnPage() {
           <UserRound size={20} />
         </button>
         <button
+          onClick={() => recordTasteEvent("save")}
+          disabled={!activeGarment}
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/32 backdrop-blur disabled:opacity-40"
+          aria-label="Save look"
+        >
+          <Heart size={20} />
+        </button>
+        <button
+          onClick={async () => {
+            await recordTasteEvent("skip");
+            moveToIndex(activeIndex + 1);
+          }}
+          disabled={!activeGarment}
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/32 backdrop-blur disabled:opacity-40"
+          aria-label="Skip look"
+        >
+          <ThumbsDown size={20} />
+        </button>
+        <button
           onClick={() => fileInputRef.current?.click()}
           className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/32 backdrop-blur"
           aria-label="Upload garment"
@@ -305,10 +390,11 @@ export default function TryOnPage() {
             href={activeGarment.source_url}
             target="_blank"
             rel="noreferrer"
+            onClick={() => recordTasteEvent("buy_click")}
             className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/32 backdrop-blur"
             aria-label="Open product"
           >
-            <ExternalLink size={20} />
+            <ShoppingBag size={20} />
           </a>
         )}
         {localGarment && (
@@ -335,6 +421,13 @@ export default function TryOnPage() {
               .filter(Boolean)
               .join(" / ") || "Paste a product URL or upload a screenshot"}
           </p>
+          {activeGarment?.recommended_pipeline && (
+            <p className="mt-2 inline-flex border border-white/12 bg-white/[0.06] px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/62">
+              {activeGarment.recommended_pipeline === "model_swap"
+                ? "Model becomes you"
+                : "Try-on fallback"}
+            </p>
+          )}
         </div>
 
         <div className="mb-3 flex gap-2">
@@ -404,12 +497,16 @@ export default function TryOnPage() {
         )}
 
         <button
-          onClick={handleTryOn}
+            onClick={handleTryOn}
           disabled={!activeGarment}
           className="flex h-12 w-full items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-[#171412] transition active:scale-[0.99] disabled:opacity-40"
         >
           {activeGarment ? <Play size={18} /> : <RefreshCw size={17} />}
-          {activeGarment ? "Try This On" : "Add a Garment"}
+          {activeGarment?.recommended_pipeline === "model_swap"
+            ? "Make Model Me"
+            : activeGarment
+              ? "Try This On"
+              : "Add a Garment"}
         </button>
       </section>
     </main>

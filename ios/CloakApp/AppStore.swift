@@ -1,6 +1,7 @@
 import Foundation
 import PhotosUI
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 @MainActor
@@ -77,7 +78,7 @@ final class AppStore: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let garment = try await api.importGarment(from: urlString)
+            let garment = try await api.importGarment(from: urlString, userId: profile?.userId)
             garments.removeAll { $0.id == garment.id || $0.sourceUrl == garment.sourceUrl }
             garments.insert(garment, at: 0)
             importURLText = ""
@@ -112,6 +113,22 @@ final class AppStore: ObservableObject {
             self.activeTryOn = try await api.fetchTryOn(id: activeTryOn.id)
         } catch {
             errorMessage = readable(error)
+        }
+    }
+
+    func save(_ garment: Garment) async {
+        await recordTasteEvent("save", garment: garment)
+    }
+
+    func skip(_ garment: Garment) async {
+        await recordTasteEvent("skip", garment: garment)
+        garments.removeAll { $0 == garment }
+    }
+
+    func buy(_ garment: Garment) async {
+        await recordTasteEvent("buy_click", garment: garment)
+        if let sourceUrl = garment.sourceUrl {
+            await UIApplication.shared.open(sourceUrl)
         }
     }
 
@@ -173,6 +190,29 @@ final class AppStore: ObservableObject {
             return
         }
         profile = saved
+    }
+
+    private func recordTasteEvent(_ eventType: String, garment: Garment) async {
+        guard let profile else {
+            return
+        }
+
+        do {
+            try await api.recordTasteEvent(
+                userId: profile.userId,
+                garment: garment,
+                eventType: eventType,
+                metadata: [
+                    "title": garment.title,
+                    "brand": garment.brand,
+                    "price": garment.price,
+                    "domain": garment.domain,
+                    "recommendedPipeline": garment.recommendedPipeline?.rawValue
+                ]
+            )
+        } catch {
+            errorMessage = readable(error)
+        }
     }
 
     private func readable(_ error: Error) -> String {

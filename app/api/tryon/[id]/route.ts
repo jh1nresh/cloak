@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { uploadWithWatermark } from "@/lib/cloudinary";
-import { getTryOnById, lockTryOnForFinalizing, updateTryOn } from "@/lib/db";
+import {
+  getTryOnById,
+  lockTryOnForFinalizing,
+  updateLookByTryOnId,
+  updateTryOn,
+} from "@/lib/db";
 import { getFashnOutputImage, getFashnTryOnStatus } from "@/lib/fashn";
 import { checkRequestRateLimit } from "@/lib/rate-limit";
 
@@ -50,6 +55,10 @@ export async function GET(
         status: "failed",
         error_message: fashnStatus.error || "Try-on generation failed",
       });
+      await updateLookByTryOnId(id, {
+        status: "failed",
+        error_message: fashnStatus.error || "Try-on generation failed",
+      }).catch((error) => console.error("Look failure update failed:", error));
 
       return noStoreJson(failedData || {
         ...data,
@@ -78,6 +87,11 @@ export async function GET(
         status: "completed",
         error_message: null,
       });
+      await updateLookByTryOnId(id, {
+        result_url: watermarkedUrl,
+        status: "completed",
+        error_message: null,
+      }).catch((error) => console.error("Look completion update failed:", error));
 
       if (!completedData) {
         throw new Error("Failed to save completed try-on");
@@ -91,6 +105,10 @@ export async function GET(
         status: "failed",
         error_message: message,
       });
+      await updateLookByTryOnId(id, {
+        status: "failed",
+        error_message: message,
+      }).catch((error) => console.error("Look finalization update failed:", error));
 
       return noStoreJson(failedData || {
         ...lockedData,

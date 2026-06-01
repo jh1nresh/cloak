@@ -51,6 +51,44 @@ export async function submitFashnTryOn(
   return data.id;
 }
 
+export async function submitFashnModelSwap(
+  sourceModelImage: string,
+  faceReference: string
+) {
+  const apiKey = getFashnApiKey();
+
+  const response = await fetch(`${FASHN_API_URL}/run`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model_name: "model-swap",
+      inputs: {
+        model_image: sourceModelImage,
+        face_reference: faceReference,
+        face_reference_mode: "match_base",
+        generation_mode: "fast",
+        resolution: "1k",
+        output_format: "jpeg",
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Fashn model swap failed: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  if (!data.id || typeof data.id !== "string") {
+    throw new Error("No prediction ID returned");
+  }
+
+  return data.id;
+}
+
 export async function getFashnTryOnStatus(id: string) {
   const apiKey = getFashnApiKey();
 

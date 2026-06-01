@@ -6,9 +6,17 @@ struct FitProfile: Codable, Equatable {
 }
 
 struct Garment: Codable, Identifiable, Equatable {
+    enum Pipeline: String, Codable {
+        case modelSwap = "model_swap"
+        case tryon
+    }
+
     let id: UUID?
     let sourceUrl: URL?
     let imageUrl: URL
+    let imageClassification: String?
+    let recommendedPipeline: Pipeline?
+    let savedItemId: UUID?
     let title: String?
     let brand: String?
     let price: String?
@@ -21,6 +29,9 @@ struct Garment: Codable, Identifiable, Equatable {
         case id
         case sourceUrl = "source_url"
         case imageUrl = "image_url"
+        case imageClassification = "image_classification"
+        case recommendedPipeline = "recommended_pipeline"
+        case savedItemId = "saved_item_id"
         case title
         case brand
         case price
@@ -31,6 +42,9 @@ struct Garment: Codable, Identifiable, Equatable {
         id: UUID?,
         sourceUrl: URL?,
         imageUrl: URL,
+        imageClassification: String? = nil,
+        recommendedPipeline: Pipeline? = nil,
+        savedItemId: UUID? = nil,
         title: String?,
         brand: String?,
         price: String?,
@@ -42,6 +56,9 @@ struct Garment: Codable, Identifiable, Equatable {
         self.id = id
         self.sourceUrl = sourceUrl
         self.imageUrl = imageUrl
+        self.imageClassification = imageClassification
+        self.recommendedPipeline = recommendedPipeline
+        self.savedItemId = savedItemId
         self.title = title
         self.brand = brand
         self.price = price
@@ -56,6 +73,9 @@ struct Garment: Codable, Identifiable, Equatable {
         id = try container.decodeIfPresent(UUID.self, forKey: .id)
         sourceUrl = try container.decodeIfPresent(URL.self, forKey: .sourceUrl)
         imageUrl = try container.decode(URL.self, forKey: .imageUrl)
+        imageClassification = try container.decodeIfPresent(String.self, forKey: .imageClassification)
+        recommendedPipeline = try container.decodeIfPresent(Pipeline.self, forKey: .recommendedPipeline)
+        savedItemId = try container.decodeIfPresent(UUID.self, forKey: .savedItemId)
         title = try container.decodeIfPresent(String.self, forKey: .title)
         brand = try container.decodeIfPresent(String.self, forKey: .brand)
         price = try container.decodeIfPresent(String.self, forKey: .price)
@@ -70,6 +90,9 @@ struct Garment: Codable, Identifiable, Equatable {
             id: nil,
             sourceUrl: nil,
             imageUrl: URL(string: "https://cloak.local/local-garment")!,
+            imageClassification: "flat_product",
+            recommendedPipeline: .tryon,
+            savedItemId: nil,
             title: "Uploaded garment",
             brand: "Camera roll",
             price: nil,
@@ -77,6 +100,24 @@ struct Garment: Codable, Identifiable, Equatable {
             isLocal: true,
             localImageData: data,
             localContentType: contentType
+        )
+    }
+
+    func attaching(savedItemId: UUID?) -> Garment {
+        Garment(
+            id: id,
+            sourceUrl: sourceUrl,
+            imageUrl: imageUrl,
+            imageClassification: imageClassification,
+            recommendedPipeline: recommendedPipeline,
+            savedItemId: savedItemId,
+            title: title,
+            brand: brand,
+            price: price,
+            domain: domain,
+            isLocal: isLocal,
+            localImageData: localImageData,
+            localContentType: localContentType
         )
     }
 }
@@ -110,11 +151,17 @@ struct GarmentsResponse: Decodable {
 struct ScrapeGarmentResponse: Decodable {
     let garment: Garment
     let imageUrl: URL
+    let savedItem: SavedItem?
 
     enum CodingKeys: String, CodingKey {
         case garment
         case imageUrl
+        case savedItem
     }
+}
+
+struct SavedItem: Decodable, Equatable {
+    let id: UUID
 }
 
 struct AvatarResponse: Decodable {
@@ -130,4 +177,8 @@ struct TryOnSubmitResponse: Decodable {
 struct APIErrorResponse: Decodable {
     let error: String
     let detail: String?
+}
+
+struct TasteEventResponse: Decodable {
+    let ok: Bool
 }

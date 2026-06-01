@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { submitFashnTryOn } from "@/lib/fashn";
-import { getGarmentById, getUserById, insertTryOn, updateTryOn } from "@/lib/db";
+import { submitFashnModelSwap, submitFashnTryOn } from "@/lib/fashn";
+import {
+  getGarmentById,
+  getSavedItemById,
+  getUserById,
+  insertLook,
+  insertTryOn,
+  updateTryOn,
+} from "@/lib/db";
 import { checkRequestRateLimit } from "@/lib/rate-limit";
 import {
   assertAllowedContentLength,
@@ -32,8 +39,14 @@ export async function POST(request: NextRequest) {
 
     assertAllowedContentLength(request, MAX_TRYON_REQUEST_BYTES);
 
-    const { userId, avatarUrl, garmentId, garmentImageUrl, garmentImageBase64 } =
-      await request.json();
+    const {
+      userId,
+      avatarUrl,
+      garmentId,
+      garmentImageUrl,
+      garmentImageBase64,
+      savedItemId,
+    } = await request.json();
 
     if (!userId || typeof userId !== "string") {
       return NextResponse.json(
@@ -52,7 +65,8 @@ export async function POST(request: NextRequest) {
     if (
       (garmentId && typeof garmentId !== "string") ||
       (garmentImageUrl && typeof garmentImageUrl !== "string") ||
-      (garmentImageBase64 && typeof garmentImageBase64 !== "string")
+      (garmentImageBase64 && typeof garmentImageBase64 !== "string") ||
+      (savedItemId && typeof savedItemId !== "string")
     ) {
       return NextResponse.json(
         { error: "Invalid garment image" },
@@ -85,8 +99,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (savedItemId) {
+      const savedItem = await getSavedItemById(savedItemId);
+      if (!savedItem) {
+        return NextResponse.json(
+          { error: "Saved item not found" },
+          { status: 404 }
+        );
+      }
+
+      if (savedItem.user_id !== userId) {
+        return NextResponse.json(
+          { error: "Saved item does not belong to user" },
+          { status: 403 }
+        );
+      }
+    }
+
     let storedGarmentId: string | null = null;
     let storedGarmentUrl: string | null = garmentImageUrl || null;
+    let pipeline: "model_swap" | "tryon" = "tryon";
 
     if (garmentId) {
       const garment = await getGarmentById(garmentId);
@@ -100,6 +132,7 @@ export async function POST(request: NextRequest) {
 
       storedGarmentId = garment.id;
       storedGarmentUrl = garment.image_url;
+      pipeline = garment.recommended_pipeline;
     }
 
     if (storedGarmentUrl) {
@@ -120,6 +153,9 @@ export async function POST(request: NextRequest) {
       userId,
       garmentId: storedGarmentId,
       garmentUrl: storedGarmentUrl,
+      pipeline,
+      savedItemId: savedItemId || null,
+      sourceImageUrl: storedGarmentUrl,
     });
 
     if (!insertedTryOn) {
@@ -131,7 +167,10 @@ export async function POST(request: NextRequest) {
 
     let predictionId: string;
     try {
-      predictionId = await submitFashnTryOn(avatarUrl, garmentImage);
+      predictionId =
+        pipeline === "model_swap" && storedGarmentUrl
+          ? await submitFashnModelSwap(storedGarmentUrl, avatarUrl)
+          : await submitFashnTryOn(avatarUrl, garmentImage);
     } catch (error) {
       await updateTryOn(tryonId, {
         status: "failed",
@@ -155,9 +194,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let lookId: string | null = randomUUID();
+    try {
+      await insertLook({
+        id: lookId,
+        userId,
+        savedItemId: savedItemId || null,
+        sourceImageId: null,
+        tryonId,
+        pipeline,
+        provider: "fashn",
+        providerJobId: predictionId,
+      });
+    } catch (error) {
+      console.error("Look insert failed:", error);
+      lookId = null;
+    }
+
     return NextResponse.json({
       id: tryonId,
       tryonId,
+      lookId,
+      pipeline,
       status: "processing",
     });
   } catch (error) {
