@@ -9,6 +9,19 @@ Product URLs imported into Cloak are saved as garments and become part of the
 vertical fit feed. The native iOS app adds a Share Extension so users can send
 product links or images into Cloak from the iOS share sheet.
 
+The root web experience is a V0 women's fashion drop storefront:
+
+- Browse 10 local demo products
+- Search or filter by category, color, fit, and tags
+- Open a product try-on studio
+- Upload one shopper photo with explicit consent
+- Generate a mock try-on comparison
+- Leave Cloak through a per-product Shopify checkout placeholder
+
+The storefront mock flow is intentionally separate from the paid Fashn.ai
+try-on API. It does not persist uploads, create accounts, place orders, or
+claim size/fit accuracy.
+
 ## Stack
 
 - Next.js App Router
@@ -29,6 +42,29 @@ npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+Useful local routes:
+
+- `/` - drop storefront gallery
+- `/products/satin-column-slip` - product try-on studio example
+- `/privacy` - storefront upload consent and privacy copy
+- `/tryon` - existing saved-link/avatar try-on app flow
+
+## Storefront V0
+
+The storefront product catalog lives in `lib/drop-products.ts`.
+
+`POST /api/drop-tryon` is a mock provider for the V0 storefront. It accepts a
+single image upload and product ID, validates file type and size, then returns a
+preselected demo result image. No provider secret is required.
+
+Allowed upload types: JPG, PNG, WebP, HEIC, HEIF.
+
+Max storefront upload size: 8MB.
+
+The checkout buttons use placeholder Shopify-style URLs from the local product
+data. Replace each `checkoutUrl` with a real Shopify product/cart checkout URL
+when the campaign drop is connected to a store.
 
 ## Native iOS
 
@@ -55,4 +91,5 @@ npm run lint
 npm test
 npx tsc --noEmit
 npm run build
+npm run check
 ```
