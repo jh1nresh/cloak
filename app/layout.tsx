@@ -9,11 +9,15 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Cloak - Virtual Try-On",
-  description: "Try on clothes virtually with AI.",
+  title: "Cloak - Try the Drop Before You Buy",
+  description: "Browse a women's fashion drop, upload one photo, preview the look, then leave for checkout.",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Cloak" },
-  openGraph: { title: "Cloak - Virtual Try-On", description: "Try on clothes virtually with AI", type: "website" },
+  openGraph: {
+    title: "Cloak - Try the Drop Before You Buy",
+    description: "Upload one photo, preview the look, and checkout only when it feels right.",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {

@@ -6,75 +6,44 @@ struct OnboardingView: View {
     @State private var selectedPhoto: PhotosPickerItem?
 
     var body: some View {
-        let uploadTitle = store.isLoading ? "Creating fit profile" : "Upload fit photo"
+        let uploadTitle = store.isLoading ? "Creating profile" : "Choose fit photo"
 
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.13, green: 0.11, blue: 0.09), Color(red: 0.05, green: 0.04, blue: 0.035)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            CloakTheme.canvas.ignoresSafeArea()
 
-            Circle()
-                .fill(Color(red: 0.72, green: 0.46, blue: 0.42).opacity(0.26))
-                .frame(width: 280, height: 280)
-                .blur(radius: 80)
-                .offset(y: -260)
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                fittingGuide
+                    .padding(.top, 26)
+                guidance
+                    .padding(.top, 22)
 
-            VStack(alignment: .leading, spacing: 22) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("CLOAK")
-                            .font(.caption.weight(.bold))
-                            .tracking(4)
-                            .foregroundStyle(.white.opacity(0.45))
-                        Text("Fit profile")
-                            .font(.system(size: 34, weight: .semibold))
-                    }
-                    Spacer()
-                    Text("CL")
-                        .font(.footnote.weight(.bold))
-                        .frame(width: 48, height: 48)
-                        .overlay(Rectangle().stroke(.white.opacity(0.16)))
-                        .background(.white.opacity(0.07))
-                }
-
-                FittingRoomPreview()
-
-                HStack(spacing: 8) {
-                    ProfileChip(title: "Front")
-                    ProfileChip(title: "Bright")
-                    ProfileChip(title: "Full body")
-                }
-
-                Spacer(minLength: 0)
+                Spacer(minLength: 20)
 
                 PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Label(uploadTitle, systemImage: "person.crop.square")
-                        .font(.headline)
+                    Label(uploadTitle, systemImage: "person.crop.rectangle")
                         .frame(maxWidth: .infinity)
-                        .frame(height: 54)
-                        .background(.white)
-                        .foregroundStyle(Color(red: 0.09, green: 0.08, blue: 0.07))
                 }
+                .buttonStyle(CloakPrimaryButtonStyle())
                 .disabled(store.isLoading)
 
-                Text("Your image is stored by the backend for try-on generation.")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.46))
-                    .frame(maxWidth: .infinity, alignment: .center)
+                Text("Your photo is stored by Cloak's backend for try-on generation. You can replace it from your profile.")
+                    .font(.caption)
+                    .foregroundStyle(CloakTheme.muted)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 12)
             }
-            .foregroundStyle(.white)
             .padding(.horizontal, 20)
-            .padding(.bottom, 24)
             .padding(.top, 18)
+            .padding(.bottom, 18)
         }
         .overlay {
             if store.isLoading {
+                CloakTheme.ink.opacity(0.36).ignoresSafeArea()
                 ProgressView()
                     .controlSize(.large)
-                    .tint(.white)
+                    .tint(CloakTheme.surface)
             }
         }
         .onChange(of: selectedPhoto) { _, newItem in
@@ -86,20 +55,36 @@ struct OnboardingView: View {
             }
         }
     }
-}
 
-struct FittingRoomPreview: View {
-    var body: some View {
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            CloakWordmark(color: CloakTheme.ink)
+            Text("Your fitting profile")
+                .font(.system(.largeTitle, design: .serif, weight: .medium))
+                .foregroundStyle(CloakTheme.ink)
+            Text("One clear, full-body photo lets Cloak place shared clothes on you.")
+                .font(.body)
+                .foregroundStyle(CloakTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var fittingGuide: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.96, green: 0.92, blue: 0.86),
-                    Color(red: 0.76, green: 0.68, blue: 0.6),
-                    Color(red: 0.24, green: 0.19, blue: 0.16),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            CloakTheme.ink
+
+            Rectangle()
+                .stroke(CloakTheme.surface.opacity(0.28), style: StrokeStyle(lineWidth: 1, dash: [8, 7]))
+                .padding(18)
+
+            VStack(spacing: 14) {
+                Image(systemName: "person.fill")
+                    .font(.system(size: 112, weight: .thin))
+                Text("HEAD TO TOE")
+                    .font(.caption2.weight(.bold))
+                    .tracking(2)
+            }
+            .foregroundStyle(CloakTheme.surface)
 
             VStack {
                 HStack {
@@ -107,57 +92,50 @@ struct FittingRoomPreview: View {
                     Spacer()
                     Text("01")
                 }
-                .font(.system(size: 10, weight: .bold))
-                .tracking(2)
-                .foregroundStyle(.black.opacity(0.42))
-                .padding(18)
-
+                .font(.caption2.weight(.bold))
+                .tracking(1.5)
+                .foregroundStyle(CloakTheme.surface.opacity(0.64))
                 Spacer()
             }
-
-            VStack(spacing: 0) {
-                Circle()
-                    .fill(Color(red: 0.91, green: 0.85, blue: 0.79))
-                    .frame(width: 62, height: 62)
-                RoundedRectangle(cornerRadius: 46, style: .continuous)
-                    .fill(Color(red: 0.1, green: 0.08, blue: 0.07))
-                    .frame(width: 112, height: 176)
-                    .offset(y: -4)
-            }
-            .offset(y: 48)
-
-            HStack {
-                Rectangle()
-                    .fill(.white.opacity(0.35))
-                    .frame(width: 56, height: 66)
-                Spacer()
-                Rectangle()
-                    .fill(.white.opacity(0.35))
-                    .frame(width: 56, height: 66)
-            }
-            .padding(.horizontal, 22)
-            .frame(maxHeight: .infinity, alignment: .bottom)
-            .padding(.bottom, 24)
+            .padding(30)
         }
         .aspectRatio(4 / 5, contentMode: .fit)
-        .overlay(Rectangle().stroke(.white.opacity(0.12)))
-        .padding(12)
-        .background(.white.opacity(0.06))
-        .overlay(Rectangle().stroke(.white.opacity(0.12)))
-        .shadow(color: .black.opacity(0.36), radius: 36, y: 24)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Fit photo guide. Stand facing forward and include your full body.")
+    }
+
+    private var guidance: some View {
+        VStack(spacing: 0) {
+            GuideRow(number: "01", title: "Face forward", detail: "Keep your pose natural and unobstructed.")
+            Divider().overlay(CloakTheme.line)
+            GuideRow(number: "02", title: "Use even light", detail: "Avoid strong shadows and backlighting.")
+            Divider().overlay(CloakTheme.line)
+            GuideRow(number: "03", title: "Show your full body", detail: "Leave a little space around your outline.")
+        }
     }
 }
 
-struct ProfileChip: View {
+private struct GuideRow: View {
+    let number: String
     let title: String
+    let detail: String
 
     var body: some View {
-        Text(title)
-            .font(.caption.weight(.bold))
-            .frame(maxWidth: .infinity)
-            .frame(height: 42)
-            .background(.white.opacity(0.06))
-            .overlay(Rectangle().stroke(.white.opacity(0.1)))
-            .foregroundStyle(.white.opacity(0.68))
+        HStack(alignment: .firstTextBaseline, spacing: 14) {
+            Text(number)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(CloakTheme.action)
+                .frame(width: 22, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(CloakTheme.ink)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(CloakTheme.muted)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 10)
     }
 }
