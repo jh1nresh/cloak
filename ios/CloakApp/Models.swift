@@ -5,6 +5,30 @@ struct FitProfile: Codable, Equatable {
     let avatarUrl: URL
 }
 
+enum AppTab: String, CaseIterable, Identifiable {
+    case discover
+    case closet
+    case profile
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .discover: "Discover"
+        case .closet: "Closet"
+        case .profile: "Me"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .discover: "sparkles"
+        case .closet: "hanger"
+        case .profile: "person.crop.circle"
+        }
+    }
+}
+
 struct Garment: Codable, Identifiable, Equatable {
     enum Pipeline: String, Codable {
         case modelSwap = "model_swap"
@@ -177,6 +201,27 @@ struct WardrobeEvidence: Equatable {
     let rationale: String
 }
 
+struct CompletedLook: Codable, Identifiable, Equatable {
+    let id: UUID
+    let resultUrl: URL
+    let garmentKey: String?
+    let sourceImageUrl: URL?
+    let title: String
+    let brand: String?
+    let price: String?
+    let completedAt: Date
+}
+
+struct TasteSummary: Codable, Equatable {
+    var saves = 0
+    var skips = 0
+    var retailerOpens = 0
+
+    var signalCount: Int {
+        saves + skips + retailerOpens
+    }
+}
+
 struct AvatarResponse: Decodable {
     let userId: String
     let avatarUrl: URL
@@ -194,4 +239,23 @@ struct APIErrorResponse: Decodable {
 
 struct TasteEventResponse: Decodable {
     let ok: Bool
+}
+
+extension Garment {
+    var libraryKey: String {
+        if isLocal, let localImageData {
+            let prefix = localImageData.prefix(24).base64EncodedString()
+            return "local:\(localImageData.count):\(prefix)"
+        }
+        if let savedItemId {
+            return "saved:\(savedItemId.uuidString)"
+        }
+        if let id {
+            return "garment:\(id.uuidString)"
+        }
+        if let sourceUrl {
+            return "source:\(sourceUrl.absoluteString)"
+        }
+        return "image:\(imageUrl.absoluteString)"
+    }
 }

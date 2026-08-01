@@ -198,6 +198,18 @@ struct CloakPrimaryButtonStyle: ButtonStyle {
     }
 }
 
+struct CloakSecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.bold))
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .foregroundStyle(CloakTheme.ink)
+            .background(configuration.isPressed ? CloakTheme.line.opacity(0.45) : CloakTheme.surface)
+            .overlay(Rectangle().stroke(CloakTheme.line))
+    }
+}
+
 struct CloakComparisonControl: View {
     @Binding var showsOriginal: Bool
 
