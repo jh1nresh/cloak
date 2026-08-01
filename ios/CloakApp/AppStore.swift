@@ -13,10 +13,19 @@ final class AppStore: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var importURLText = ""
+    @Published var selectedTab: AppTab = .discover
+    @Published var isImportPresented = false
+    @Published var isTabBarHidden = false
+    @Published private(set) var savedGarmentKeys: Set<String> = []
+    @Published private(set) var completedLooks: [CompletedLook] = []
+    @Published private(set) var tasteSummary = TasteSummary()
     @Published private var wardrobeEvidenceByGarmentID: [UUID: WardrobeEvidence] = [:]
 
     private let api: APIClient
     private let profileKey = "cloak.fitProfile"
+    private let savedGarmentsKey = "cloak.savedGarments"
+    private let completedLooksKey = "cloak.completedLooks"
+    private let tasteSummaryKey = "cloak.tasteSummary"
 
     init(api: APIClient = APIClient()) {
         self.api = api
@@ -27,6 +36,7 @@ final class AppStore: ObservableObject {
         }
 #endif
         loadSavedProfile()
+        loadLibraryState()
     }
 
     func loadFeed() async {
@@ -54,7 +64,11 @@ final class AppStore: ObservableObject {
             isLoading = true
             defer { isLoading = false }
 
+            let wasReplacingProfile = profile != nil
             profile = try await api.createAvatar(imageData: data, contentType: contentType)
+            if wasReplacingProfile {
+                clearLibraryState()
+            }
             saveProfile()
         } catch {
             errorMessage = readable(error)
@@ -67,7 +81,10 @@ final class AppStore: ObservableObject {
                 throw APIClientError.missingResult
             }
             let contentType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
-            garments.insert(.localImage(data: data, contentType: contentType), at: 0)
+            let garment = Garment.localImage(data: data, contentType: contentType)
+            garments.insert(garment, at: 0)
+            savedGarmentKeys.insert(garment.libraryKey)
+            saveLibraryState()
         } catch {
             errorMessage = readable(error)
         }
@@ -89,6 +106,8 @@ final class AppStore: ObservableObject {
             let garment = try await api.importGarment(from: urlString, userId: profile?.userId)
             garments.removeAll { $0.id == garment.id || $0.sourceUrl == garment.sourceUrl }
             garments.insert(garment, at: 0)
+            savedGarmentKeys.insert(garment.libraryKey)
+            saveLibraryState()
             importURLText = ""
         } catch {
             errorMessage = readable(error)
@@ -119,23 +138,40 @@ final class AppStore: ObservableObject {
         }
 
         do {
-            self.activeTryOn = try await api.fetchTryOn(id: activeTryOn.id)
+            let refreshed = try await api.fetchTryOn(id: activeTryOn.id)
+            self.activeTryOn = refreshed
+            archiveCompletedLook(refreshed)
         } catch {
             errorMessage = readable(error)
         }
     }
 
     func save(_ garment: Garment) async {
-        await recordTasteEvent("save", garment: garment)
+        guard savedGarmentKeys.insert(garment.libraryKey).inserted else {
+            return
+        }
+        tasteSummary.saves += 1
+        saveLibraryState()
+        await recordTasteEvent("save", garment: garment, reportFailure: false)
+    }
+
+    func removeSaved(_ garment: Garment) {
+        savedGarmentKeys.remove(garment.libraryKey)
+        saveLibraryState()
     }
 
     func skip(_ garment: Garment) async {
-        await recordTasteEvent("skip", garment: garment)
+        savedGarmentKeys.remove(garment.libraryKey)
+        tasteSummary.skips += 1
+        saveLibraryState()
+        await recordTasteEvent("skip", garment: garment, reportFailure: false)
         garments.removeAll { $0 == garment }
     }
 
     func buy(_ garment: Garment) async {
-        await recordTasteEvent("buy_click", garment: garment)
+        tasteSummary.retailerOpens += 1
+        saveLibraryState()
+        await recordTasteEvent("buy_click", garment: garment, reportFailure: false)
         if let sourceUrl = garment.sourceUrl {
             await UIApplication.shared.open(sourceUrl)
         }
@@ -153,8 +189,25 @@ final class AppStore: ObservableObject {
         return wardrobeEvidenceByGarmentID[id]
     }
 
+    func isSaved(_ garment: Garment) -> Bool {
+        savedGarmentKeys.contains(garment.libraryKey)
+    }
+
+    var savedGarments: [Garment] {
+        garments.filter { savedGarmentKeys.contains($0.libraryKey) }
+    }
+
+    func presentImport() {
+        selectedTab = .discover
+        isImportPresented = true
+    }
+
     func resetProfile() {
         profile = nil
+        activeTryOn = nil
+        activeGarment = nil
+        selectedTab = .discover
+        clearLibraryState()
         UserDefaults.standard.removeObject(forKey: profileKey)
     }
 
@@ -166,9 +219,7 @@ final class AppStore: ObservableObject {
         if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
            let sharedURL = components.queryItems?.first(where: { $0.name == "url" })?.value {
             importURLText = sharedURL
-            Task {
-                await importGarment(from: sharedURL)
-            }
+            presentImport()
         } else if URLComponents(url: url, resolvingAgainstBaseURL: false)?
             .queryItems?
             .contains(where: { $0.name == "sharedImage" }) == true {
@@ -199,6 +250,60 @@ final class AppStore: ObservableObject {
             return
         }
         UserDefaults.standard.set(data, forKey: profileKey)
+    }
+
+    private func archiveCompletedLook(_ tryOn: TryOn) {
+        guard tryOn.status == .completed,
+              let resultUrl = tryOn.resultUrl,
+              !completedLooks.contains(where: { $0.id == tryOn.id }) else {
+            return
+        }
+
+        let garment = activeGarment
+        completedLooks.insert(
+            CompletedLook(
+                id: tryOn.id,
+                resultUrl: resultUrl,
+                garmentKey: garment?.libraryKey,
+                sourceImageUrl: garment?.imageUrl,
+                title: garment?.title ?? "Try-on look",
+                brand: garment?.brand,
+                price: garment?.price,
+                completedAt: Date()
+            ),
+            at: 0
+        )
+        saveLibraryState()
+    }
+
+    private func loadLibraryState() {
+        let defaults = UserDefaults.standard
+        savedGarmentKeys = Set(defaults.stringArray(forKey: savedGarmentsKey) ?? [])
+        if let data = defaults.data(forKey: completedLooksKey),
+           let looks = try? JSONDecoder().decode([CompletedLook].self, from: data) {
+            completedLooks = looks
+        }
+        if let data = defaults.data(forKey: tasteSummaryKey),
+           let summary = try? JSONDecoder().decode(TasteSummary.self, from: data) {
+            tasteSummary = summary
+        }
+    }
+
+    private func saveLibraryState() {
+        let defaults = UserDefaults.standard
+        defaults.set(Array(savedGarmentKeys).sorted(), forKey: savedGarmentsKey)
+        defaults.set(try? JSONEncoder().encode(completedLooks), forKey: completedLooksKey)
+        defaults.set(try? JSONEncoder().encode(tasteSummary), forKey: tasteSummaryKey)
+    }
+
+    private func clearLibraryState() {
+        savedGarmentKeys = []
+        completedLooks = []
+        tasteSummary = TasteSummary()
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: savedGarmentsKey)
+        defaults.removeObject(forKey: completedLooksKey)
+        defaults.removeObject(forKey: tasteSummaryKey)
     }
 
     private func loadSavedProfile() {
@@ -261,7 +366,11 @@ final class AppStore: ObservableObject {
     }
 #endif
 
-    private func recordTasteEvent(_ eventType: String, garment: Garment) async {
+    private func recordTasteEvent(
+        _ eventType: String,
+        garment: Garment,
+        reportFailure: Bool = true
+    ) async {
         guard let profile else {
             return
         }
@@ -280,7 +389,9 @@ final class AppStore: ObservableObject {
                 ]
             )
         } catch {
-            errorMessage = readable(error)
+            if reportFailure {
+                errorMessage = readable(error)
+            }
         }
     }
 

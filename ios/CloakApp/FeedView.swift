@@ -5,7 +5,6 @@ struct FeedView: View {
     @ObservedObject var store: AppStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedGarment: PhotosPickerItem?
-    @State private var showImportField = false
 
     var body: some View {
         ZStack {
@@ -15,7 +14,7 @@ struct FeedView: View {
                 LazyVStack(spacing: 0) {
                     if store.garments.isEmpty && !store.isLoading {
                         EmptyFeedView {
-                            showImportField = true
+                            store.presentImport()
                         }
                         .containerRelativeFrame(.vertical)
                     }
@@ -24,6 +23,7 @@ struct FeedView: View {
                         GarmentCard(
                             garment: garment,
                             evidence: store.wardrobeEvidence(for: garment),
+                            isSaved: store.isSaved(garment),
                             isLoading: store.isLoading,
                             onTryOn: {
                                 Task {
@@ -56,15 +56,11 @@ struct FeedView: View {
             .ignoresSafeArea()
 
             VStack {
-                TopChrome(
-                    profile: store.profile,
-                    onImport: { showImportField = true },
-                    onReset: store.resetProfile
-                )
+                TopChrome()
                 Spacer()
             }
 
-            if showImportField {
+            if store.isImportPresented {
                 ImportPanel(
                     text: $store.importURLText,
                     isLoading: store.isLoading,
@@ -72,12 +68,12 @@ struct FeedView: View {
                         Task {
                             await store.importGarment()
                             if store.errorMessage == nil {
-                                showImportField = false
+                                store.isImportPresented = false
                             }
                         }
                     },
                     onClose: {
-                        showImportField = false
+                        store.isImportPresented = false
                     },
                     uploadPicker: {
                         PhotosPicker(selection: $selectedGarment, matching: .images) {
@@ -94,7 +90,7 @@ struct FeedView: View {
                 .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(reduceMotion ? .linear(duration: 0.15) : .easeOut(duration: 0.22), value: showImportField)
+        .animation(reduceMotion ? .linear(duration: 0.15) : .easeOut(duration: 0.22), value: store.isImportPresented)
         .task {
             await store.loadFeed()
         }
@@ -105,7 +101,7 @@ struct FeedView: View {
             Task {
                 await store.addLocalGarment(from: newItem)
                 selectedGarment = nil
-                showImportField = false
+                store.isImportPresented = false
             }
         }
     }
@@ -114,6 +110,7 @@ struct FeedView: View {
 struct GarmentCard: View {
     let garment: Garment
     let evidence: WardrobeEvidence?
+    let isSaved: Bool
     let isLoading: Bool
     let onTryOn: () -> Void
     let onSave: () -> Void
@@ -163,7 +160,11 @@ struct GarmentCard: View {
 
     private var actionRail: some View {
         VStack(spacing: 13) {
-            CloakRailAction(systemImage: "bookmark", title: "Save", action: onSave)
+            CloakRailAction(
+                systemImage: isSaved ? "bookmark.fill" : "bookmark",
+                title: isSaved ? "Saved" : "Save",
+                action: onSave
+            )
             CloakRailAction(systemImage: "xmark", title: "Skip", action: onSkip)
             CloakRailAction(
                 systemImage: "sparkles",
@@ -237,7 +238,7 @@ struct GarmentCard: View {
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
-        .padding(.bottom, 30)
+        .padding(.bottom, 128)
         .background {
             CloakGlassBackground()
                 .ignoresSafeArea(edges: .bottom)
@@ -360,40 +361,17 @@ struct ImportPanel<UploadPicker: View>: View {
 }
 
 struct TopChrome: View {
-    let profile: FitProfile?
-    let onImport: () -> Void
-    let onReset: () -> Void
-
     var body: some View {
         HStack(spacing: 10) {
             CloakWordmark()
             Spacer()
-            Button(action: onImport) {
-                Image(systemName: "plus")
-                    .font(.body.weight(.semibold))
-                    .frame(width: 38, height: 38)
-                    .background(CloakTheme.ink.opacity(0.34))
-                    .overlay(Circle().stroke(CloakTheme.surface.opacity(0.2)))
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Import garment")
-
-            Menu {
-                Button("Reset fit photo", role: .destructive, action: onReset)
-            } label: {
-                AsyncImage(url: profile?.avatarUrl) { image in
-                    image
-                        .resizable()
-                        .scaledToFill()
-                } placeholder: {
-                    Image(systemName: "person.crop.circle.fill")
-                }
-                .frame(width: 38, height: 38)
+            Text("FOR YOU")
+                .font(.caption2.weight(.bold))
+                .tracking(1.2)
+                .padding(.horizontal, 10)
+                .frame(height: 32)
                 .background(CloakTheme.ink.opacity(0.34))
-                .overlay(Circle().stroke(CloakTheme.surface.opacity(0.2)))
-                .clipShape(Circle())
-            }
+                .overlay(Rectangle().stroke(CloakTheme.surface.opacity(0.2)))
         }
         .foregroundStyle(CloakTheme.surface)
         .padding(.horizontal, 18)
