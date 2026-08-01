@@ -25,3 +25,14 @@ The app defaults to `http://localhost:3002` through `CLOAKAPIBaseURL` in `CloakA
 ## Product Direction
 
 This app keeps the backend as the source of truth. The iOS app should never talk directly to Railway Postgres or service-role credentials. Media storage is handled by the backend through Cloudinary.
+
+## MVP Pages
+
+- Onboarding creates or replaces the private fit profile.
+- Discover is the vertical, full-screen garment feed.
+- Import accepts a confirmed retailer URL or garment image.
+- Closet separates locally saved pieces, completed try-ons, and confirmed ownership.
+- Me shows fit-photo controls, local taste signals, privacy/data disclosure, and app information.
+- Result covers processing, failure, original/me comparison, save, share, and retailer handoff.
+
+Saved pieces, completed-look links, and taste totals are persisted on the device. The Owned section remains empty until purchase confirmation is connected; a save or retailer visit never creates ownership. Cloud deletion and personalized recommendation summaries are not implemented in this private-beta slice.

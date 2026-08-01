@@ -24,7 +24,7 @@ struct RootView: View {
             } else if store.activeTryOn != nil {
                 ResultView(store: store)
             } else {
-                FeedView(store: store)
+                AppShellView(store: store)
             }
         }
         .alert("Cloak", isPresented: errorBinding) {
