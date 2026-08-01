@@ -12,6 +12,7 @@
 		4C747B1434BF23B9DD652FB8 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 208EAFBB768D30064021D0D1 /* Models.swift */; };
 		57A5196480D3FFB64F7EB566 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 053B3186C4959BC8BD688104 /* FeedView.swift */; };
 		667E7BAFD8E4E6B82C85B35F /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A4508007D60FEC5E8A8395 /* ResultView.swift */; };
+		6F151B28A42871C9F4CC4E44 /* CloakTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C145DDAC5ABEFBCB6DF696 /* CloakTheme.swift */; };
 		7CA3B97EDB8FB0B0AF3AAC58 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6B25930D784118621B78A3 /* APIClient.swift */; };
 		8665965B559003767F4C025E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3FD642A59C5FABDBF76A4781 /* Assets.xcassets */; };
 		A2F548563D38605FA25EC6B7 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADE3E6DD13493287590385CC /* AppStore.swift */; };
@@ -52,6 +53,7 @@
 		3FD642A59C5FABDBF76A4781 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		601EB4E411E8ADED97B8263C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7024405E5D60B77862E5747E /* CloakShareExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = CloakShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		73C145DDAC5ABEFBCB6DF696 /* CloakTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloakTheme.swift; sourceTree = "<group>"; };
 		75B2B580E918C912E2C1E80F /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		88A4508007D60FEC5E8A8395 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		89BE1C56BB6501D44589D82C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -70,6 +72,7 @@
 				3FD642A59C5FABDBF76A4781 /* Assets.xcassets */,
 				969AC3E03BDD7410C3B7BF26 /* Cloak.entitlements */,
 				0CF3EF81C717CAFBA4E2466B /* CloakApp.swift */,
+				73C145DDAC5ABEFBCB6DF696 /* CloakTheme.swift */,
 				053B3186C4959BC8BD688104 /* FeedView.swift */,
 				601EB4E411E8ADED97B8263C /* Info.plist */,
 				208EAFBB768D30064021D0D1 /* Models.swift */,
@@ -213,6 +216,7 @@
 				7CA3B97EDB8FB0B0AF3AAC58 /* APIClient.swift in Sources */,
 				A2F548563D38605FA25EC6B7 /* AppStore.swift in Sources */,
 				DA51863364876C013C1F04A0 /* CloakApp.swift in Sources */,
+				6F151B28A42871C9F4CC4E44 /* CloakTheme.swift in Sources */,
 				57A5196480D3FFB64F7EB566 /* FeedView.swift in Sources */,
 				4C747B1434BF23B9DD652FB8 /* Models.swift in Sources */,
 				252BB60559BE0EA372CB36EA /* OnboardingView.swift in Sources */,
