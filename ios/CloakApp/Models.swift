@@ -164,6 +164,19 @@ struct SavedItem: Decodable, Equatable {
     let id: UUID
 }
 
+struct WardrobePiece: Identifiable, Equatable {
+    let id: UUID
+    let imageUrl: URL
+    let title: String
+}
+
+struct WardrobeEvidence: Equatable {
+    let pieces: [WardrobePiece]
+    let wearCount: Int?
+    let lastWorn: String?
+    let rationale: String
+}
+
 struct AvatarResponse: Decodable {
     let userId: String
     let avatarUrl: URL

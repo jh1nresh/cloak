@@ -3,28 +3,27 @@ import SwiftUI
 
 struct FeedView: View {
     @ObservedObject var store: AppStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedGarment: PhotosPickerItem?
     @State private var showImportField = false
 
     var body: some View {
         ZStack {
-            Color(red: 0.08, green: 0.07, blue: 0.06).ignoresSafeArea()
-            Circle()
-                .fill(Color(red: 0.72, green: 0.46, blue: 0.42).opacity(0.18))
-                .frame(width: 280, height: 280)
-                .blur(radius: 90)
-                .offset(y: -330)
+            CloakTheme.ink.ignoresSafeArea()
 
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
                     if store.garments.isEmpty && !store.isLoading {
-                        EmptyFeedView(showImportField: $showImportField)
-                            .containerRelativeFrame(.vertical)
+                        EmptyFeedView {
+                            showImportField = true
+                        }
+                        .containerRelativeFrame(.vertical)
                     }
 
                     ForEach(Array(store.garments.enumerated()), id: \.offset) { _, garment in
                         GarmentCard(
                             garment: garment,
+                            evidence: store.wardrobeEvidence(for: garment),
                             isLoading: store.isLoading,
                             onTryOn: {
                                 Task {
@@ -41,17 +40,9 @@ struct FeedView: View {
                                     await store.skip(garment)
                                 }
                             },
-                            onBuy: {
+                            onOpenRetailer: {
                                 Task {
                                     await store.buy(garment)
-                                }
-                            },
-                            onImport: {
-                                showImportField = true
-                            },
-                            uploadPicker: {
-                                PhotosPicker(selection: $selectedGarment, matching: .images) {
-                                    FeedIconButton(systemImage: "photo.badge.plus", title: "Upload")
                                 }
                             }
                         )
@@ -65,7 +56,11 @@ struct FeedView: View {
             .ignoresSafeArea()
 
             VStack {
-                TopChrome(profile: store.profile, onReset: store.resetProfile)
+                TopChrome(
+                    profile: store.profile,
+                    onImport: { showImportField = true },
+                    onReset: store.resetProfile
+                )
                 Spacer()
             }
 
@@ -76,17 +71,30 @@ struct FeedView: View {
                     onSubmit: {
                         Task {
                             await store.importGarment()
-                            showImportField = false
+                            if store.errorMessage == nil {
+                                showImportField = false
+                            }
                         }
                     },
                     onClose: {
                         showImportField = false
+                    },
+                    uploadPicker: {
+                        PhotosPicker(selection: $selectedGarment, matching: .images) {
+                            Label("Upload garment image", systemImage: "photo.badge.plus")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                                .foregroundStyle(CloakTheme.ink)
+                                .background(CloakTheme.surface)
+                                .overlay(Rectangle().stroke(CloakTheme.line))
+                        }
                     }
                 )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: showImportField)
+        .animation(reduceMotion ? .linear(duration: 0.15) : .easeOut(duration: 0.22), value: showImportField)
         .task {
             await store.loadFeed()
         }
@@ -96,106 +104,155 @@ struct FeedView: View {
             }
             Task {
                 await store.addLocalGarment(from: newItem)
+                selectedGarment = nil
+                showImportField = false
             }
         }
     }
 }
 
-struct GarmentCard<UploadPicker: View>: View {
+struct GarmentCard: View {
     let garment: Garment
+    let evidence: WardrobeEvidence?
     let isLoading: Bool
     let onTryOn: () -> Void
     let onSave: () -> Void
     let onSkip: () -> Void
-    let onBuy: () -> Void
-    let onImport: () -> Void
-    @ViewBuilder let uploadPicker: () -> UploadPicker
+    let onOpenRetailer: () -> Void
 
     var body: some View {
-        ZStack {
-            GarmentImageView(garment: garment)
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                GarmentImageView(garment: garment)
+                    .ignoresSafeArea()
 
-            LinearGradient(
-                colors: [.clear, Color(red: 0.08, green: 0.07, blue: 0.06).opacity(0.88)],
-                startPoint: .center,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+                CloakTheme.imageScrim
+                    .ignoresSafeArea()
 
-            HStack(alignment: .bottom, spacing: 18) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(garment.title ?? "Untitled garment")
-                        .font(.title2.weight(.bold))
-                        .lineLimit(2)
-                    HStack(spacing: 8) {
-                        if let brand = garment.brand {
-                            Text(brand)
-                        }
-                        if let price = garment.price {
-                            Text(price)
-                        }
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.78))
+                sourceChrome
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(.top, 68)
+                    .padding(.horizontal, 18)
 
-                    if let pipeline = garment.recommendedPipeline {
-                        Text(pipeline == .modelSwap ? "Model becomes you" : "Try-on fallback")
-                            .font(.caption2.weight(.bold))
-                            .tracking(1.5)
-                            .textCase(.uppercase)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 6)
-                            .background(.white.opacity(0.1))
-                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white.opacity(0.14)))
-                    }
+                actionRail
+                    .position(
+                        x: max(42, proxy.size.width - 42),
+                        y: proxy.size.height * (evidence == nil ? 0.58 : 0.46)
+                    )
 
-                    Button(action: onTryOn) {
-                        Label(
-                            isLoading
-                                ? "Working"
-                                : garment.recommendedPipeline == .modelSwap
-                                    ? "Make model me"
-                                    : "Try on",
-                            systemImage: "sparkles"
-                        )
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 52)
-                    }
-                    .background(.white)
-                    .foregroundStyle(Color(red: 0.09, green: 0.08, blue: 0.07))
-                    .disabled(isLoading)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                VStack(spacing: 16) {
-                    Button(action: onSave) {
-                        FeedIconButton(systemImage: "heart", title: "Save")
-                    }
-                    Button(action: onSkip) {
-                        FeedIconButton(systemImage: "hand.thumbsdown", title: "Skip")
-                    }
-                    if garment.sourceUrl != nil {
-                        Button(action: onBuy) {
-                            FeedIconButton(systemImage: "bag", title: "Buy")
-                        }
-                    }
-                    Button(action: onImport) {
-                        FeedIconButton(systemImage: "link.badge.plus", title: "Link")
-                    }
-                    uploadPicker()
-                    ShareLink(item: garment.sourceUrl ?? garment.imageUrl) {
-                        FeedIconButton(systemImage: "square.and.arrow.up", title: "Share")
-                    }
-                }
+                glassPanel
+                    .frame(width: proxy.size.width)
             }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 18)
-            .padding(.bottom, 32)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .background(CloakTheme.ink)
         }
     }
+
+    private var sourceChrome: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text(garment.isLocal ? "Uploaded" : "Imported")
+                .font(.caption2.weight(.bold))
+            Text(garment.domain ?? garment.brand ?? "Garment image")
+                .font(.caption2)
+                .foregroundStyle(CloakTheme.surface.opacity(0.76))
+                .lineLimit(1)
+        }
+        .foregroundStyle(CloakTheme.surface)
+        .shadow(color: CloakTheme.ink.opacity(0.42), radius: 8, y: 2)
+    }
+
+    private var actionRail: some View {
+        VStack(spacing: 13) {
+            CloakRailAction(systemImage: "bookmark", title: "Save", action: onSave)
+            CloakRailAction(systemImage: "xmark", title: "Skip", action: onSkip)
+            CloakRailAction(
+                systemImage: "sparkles",
+                title: isLoading ? "Working" : "Try on",
+                isPrimary: true,
+                action: onTryOn
+            )
+            .disabled(isLoading)
+        }
+    }
+
+    private var glassPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Capsule()
+                .fill(CloakTheme.surface.opacity(0.56))
+                .frame(width: 38, height: 4)
+                .frame(maxWidth: .infinity)
+
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(evidence == nil ? pipelineLabel : "YOUR CLOSET")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.1)
+                        .foregroundStyle(CloakTheme.actionSoft)
+                    Text(garment.title ?? "Untitled garment")
+                        .font(.system(.title2, design: .serif, weight: .medium))
+                        .foregroundStyle(CloakTheme.surface)
+                        .lineLimit(2)
+                }
+                .layoutPriority(1)
+                Spacer(minLength: 8)
+                Text("NOT OWNED")
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.8)
+                    .padding(.horizontal, 8)
+                    .frame(height: 28)
+                    .foregroundStyle(CloakTheme.surface)
+                    .background(CloakTheme.surface.opacity(0.1))
+                    .overlay(Rectangle().stroke(CloakTheme.surface.opacity(0.38)))
+            }
+            .padding(.top, 12)
+
+            HStack(spacing: 8) {
+                if let brand = garment.brand {
+                    Text(brand)
+                }
+                if garment.brand != nil, garment.price != nil {
+                    Text("/")
+                }
+                if let price = garment.price {
+                    Text(price)
+                }
+                Spacer()
+                if garment.sourceUrl != nil {
+                    Button(action: onOpenRetailer) {
+                        Label("View source", systemImage: "arrow.up.right")
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(CloakTheme.surface)
+                    .buttonStyle(.plain)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(CloakTheme.surface.opacity(0.7))
+            .padding(.top, 8)
+
+            if let evidence {
+                CloakWardrobeEvidenceView(evidence: evidence)
+                    .padding(.top, 12)
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+        .padding(.bottom, 30)
+        .background {
+            CloakGlassBackground()
+                .ignoresSafeArea(edges: .bottom)
+        }
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(CloakTheme.surface.opacity(0.24))
+                .frame(height: 1)
+        }
+    }
+
+    private var pipelineLabel: String {
+        garment.recommendedPipeline == .modelSwap ? "Model swap available" : "Virtual try-on"
+    }
+
 }
 
 struct GarmentImageView: View {
@@ -220,7 +277,7 @@ struct GarmentImageView: View {
                         UnavailableImageView()
                     case .empty:
                         ProgressView()
-                            .tint(.white)
+                            .tint(CloakTheme.surface)
                     @unknown default:
                         UnavailableImageView()
                     }
@@ -229,87 +286,99 @@ struct GarmentImageView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
-        .background(Color.black)
+        .background(CloakTheme.ink)
     }
 }
 
-struct FeedIconButton: View {
-    let systemImage: String
-    let title: String
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.title2.weight(.bold))
-                .frame(width: 50, height: 50)
-                .background(.black.opacity(0.32))
-                .overlay(Circle().stroke(.white.opacity(0.16)))
-                .clipShape(Circle())
-            Text(title)
-                .font(.caption2.weight(.bold))
-        }
-        .foregroundStyle(.white)
-        .shadow(radius: 10)
-    }
-}
-
-struct ImportPanel: View {
+struct ImportPanel<UploadPicker: View>: View {
     @Binding var text: String
     let isLoading: Bool
     let onSubmit: () -> Void
     let onClose: () -> Void
+    @ViewBuilder let uploadPicker: () -> UploadPicker
 
     var body: some View {
-        VStack(spacing: 14) {
-            Capsule()
-                .fill(.white.opacity(0.22))
-                .frame(width: 44, height: 5)
+        ZStack(alignment: .bottom) {
+            CloakTheme.ink.opacity(0.48)
+                .ignoresSafeArea()
+                .onTapGesture(perform: onClose)
 
-            HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("ADD TO CLOAK")
+                            .font(.caption2.weight(.bold))
+                            .tracking(1.2)
+                            .foregroundStyle(CloakTheme.action)
+                        Text("Import a piece")
+                            .font(.system(.title2, design: .serif, weight: .medium))
+                    }
+                    Spacer()
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 44, height: 44)
+                    }
+                    .foregroundStyle(CloakTheme.ink)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close import")
+                }
+
                 TextField("Paste product link", text: $text)
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
                     .padding(.horizontal, 14)
-                    .frame(height: 48)
-                    .background(.white.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .frame(height: 50)
+                    .background(CloakTheme.surface)
+                    .overlay(Rectangle().stroke(CloakTheme.line))
 
                 Button(action: onSubmit) {
-                    Image(systemName: isLoading ? "hourglass" : "arrow.up")
-                        .font(.headline.weight(.bold))
-                        .frame(width: 48, height: 48)
-                    .background(.white)
-                    .foregroundStyle(Color(red: 0.09, green: 0.08, blue: 0.07))
-                    .clipShape(Circle())
+                    Label(isLoading ? "Analyzing link" : "Analyze product link", systemImage: "arrow.right")
+                        .frame(maxWidth: .infinity)
                 }
-                .disabled(isLoading)
+                .buttonStyle(CloakPrimaryButtonStyle())
+                .disabled(isLoading || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                HStack(spacing: 12) {
+                    Rectangle().fill(CloakTheme.line).frame(height: 1)
+                    Text("OR")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(CloakTheme.muted)
+                    Rectangle().fill(CloakTheme.line).frame(height: 1)
+                }
+
+                uploadPicker()
             }
+            .foregroundStyle(CloakTheme.ink)
+            .padding(.horizontal, 18)
+            .padding(.top, 18)
+            .padding(.bottom, 30)
+            .background(CloakTheme.canvas)
         }
-        .padding(18)
-        .padding(.bottom, 10)
-        .background(Color(red: 0.08, green: 0.07, blue: 0.06).opacity(0.92))
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .onTapGesture(count: 2, perform: onClose)
     }
 }
 
 struct TopChrome: View {
     let profile: FitProfile?
+    let onImport: () -> Void
     let onReset: () -> Void
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("CLOAK")
-                    .font(.caption2.weight(.bold))
-                    .tracking(3)
-                    .foregroundStyle(.white.opacity(0.45))
-                Text("Fit feed")
-                    .font(.headline.weight(.semibold))
-            }
+        HStack(spacing: 10) {
+            CloakWordmark()
             Spacer()
+            Button(action: onImport) {
+                Image(systemName: "plus")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 38, height: 38)
+                    .background(CloakTheme.ink.opacity(0.34))
+                    .overlay(Circle().stroke(CloakTheme.surface.opacity(0.2)))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Import garment")
+
             Menu {
                 Button("Reset fit photo", role: .destructive, action: onReset)
             } label: {
@@ -320,47 +389,49 @@ struct TopChrome: View {
                 } placeholder: {
                     Image(systemName: "person.crop.circle.fill")
                 }
-                .frame(width: 36, height: 36)
+                .frame(width: 38, height: 38)
+                .background(CloakTheme.ink.opacity(0.34))
+                .overlay(Circle().stroke(CloakTheme.surface.opacity(0.2)))
                 .clipShape(Circle())
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(CloakTheme.surface)
         .padding(.horizontal, 18)
-        .padding(.top, 12)
-        .shadow(radius: 10)
+        .padding(.top, 10)
+        .shadow(color: CloakTheme.ink.opacity(0.4), radius: 8, y: 2)
     }
 }
 
 struct EmptyFeedView: View {
-    @Binding var showImportField: Bool
+    let onImport: () -> Void
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(alignment: .leading, spacing: 0) {
             Spacer()
-            Image(systemName: "tshirt.fill")
-                .font(.system(size: 64))
-            Text("Add your first garment")
-                .font(.title2.weight(.bold))
-            Text("Paste a product link or upload a screenshot from your camera roll.")
+            Text("YOUR PRIVATE FITTING ROOM")
+                .font(.caption2.weight(.bold))
+                .tracking(1.3)
+                .foregroundStyle(CloakTheme.action)
+            Text("Share a piece.\nSee it on you.")
+                .font(.system(size: 42, weight: .medium, design: .serif))
+                .foregroundStyle(CloakTheme.ink)
+                .padding(.top, 9)
+            Text("Paste a retailer link or upload a garment image to start your first look.")
                 .font(.body)
-                .foregroundStyle(.white.opacity(0.7))
-                .multilineTextAlignment(.center)
-            Button {
-                showImportField = true
-            } label: {
-                Label("Paste link", systemImage: "link.badge.plus")
-                    .font(.headline)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 14)
-                    .background(.white)
-                .foregroundStyle(Color(red: 0.09, green: 0.08, blue: 0.07))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .foregroundStyle(CloakTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 14)
+            Button(action: onImport) {
+                Label("Import a piece", systemImage: "link.badge.plus")
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(CloakPrimaryButtonStyle())
+            .padding(.top, 26)
             Spacer()
         }
-        .padding(24)
-        .foregroundStyle(.white)
-        .background(Color(red: 0.08, green: 0.07, blue: 0.06))
+        .padding(.horizontal, 20)
+        .padding(.top, 72)
+        .background(CloakTheme.canvas)
     }
 }
 
@@ -372,8 +443,8 @@ struct UnavailableImageView: View {
             Text("Image unavailable")
                 .font(.headline)
         }
-        .foregroundStyle(.white.opacity(0.75))
+        .foregroundStyle(CloakTheme.surface.opacity(0.75))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(red: 0.08, green: 0.08, blue: 0.09))
+        .background(CloakTheme.ink)
     }
 }
