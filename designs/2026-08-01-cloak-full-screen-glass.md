@@ -1,6 +1,7 @@
 # Cloak Full-Screen Glass
 
-Status: approved and implemented on 2026-08-01.
+Status: implemented on 2026-08-01, then superseded by
+`designs/2026-08-01-cloak-personal-wardrobe-board/production-design-spec.md`.
 
 ## Direction
 
