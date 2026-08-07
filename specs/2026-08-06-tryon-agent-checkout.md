@@ -275,13 +275,38 @@ UCP for cart and checkout, ACP shared payment token for money, Cloak never MoR
 and never stores a card number. Requires an `orders` table, order status in
 `ProfileView`, and a security review note per `AGENTS.md` before merge.
 
+# P4 — Fitting Room (sketch, realtime WebRTC)
+
+A deliberate high-intent session, not the default browsing surface. The user
+stands up, props the phone, and cycles their **saved shortlist** on a live
+mirror. Decart realtime supports mid-session garment swap natively — `set()`
+atomically replaces prompt + garment image on one WebRTC connection; Swift SDK
+exists.
+
+Why it is a mode and not the feed:
+
+- Cost is per second, not per garment: $0.02/sec = $1.2/min. Ten minutes of
+  idle browsing = $12; a 3-minute decisive session ≈ $3.6. Only high intent
+  justifies the meter.
+- Posture: default browsing is one-handed in bed; a live mirror requires
+  standing, propping the phone, stepping back. That is a deliberate act — so
+  design it as one.
+- Privacy: continuous camera streaming to a third party needs heavier consent
+  than one stored 3s clip. Explicit session start/stop, visible live
+  indicator, hard session cap (e.g. 3 min with extend).
+
+Funnel position: feed (batch) → shortlist → fitting room (realtime, compare
+candidates by turning) → the highest-conversion moment in the product → hand
+directly to agent checkout ("buy this one in M"). Build only after P1 retention
+data and the P0 checkout answer exist.
+
 ---
 
 ## Out of Scope
 
-- Realtime WebRTC try-on / "digital mirror" mode. Decart supports it and has a
-  Swift SDK, but it is a retention feature, not a P1 decision aid, and costs
-  engineering that P1 does not need.
+- Realtime WebRTC as the *default browsing surface*. It survives only as the
+  deliberate P4 fitting-room session above — per-second cost, posture, and
+  privacy make it wrong as the feed.
 - Replacing the Fashn still-image pipeline. It stays as fallback and for users
   who decline video capture.
 - Catalog ingestion, product search, recommendations from a merchant feed.
