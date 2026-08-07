@@ -71,7 +71,13 @@ struct ProfileView: View {
             NavigationLink {
                 FitProfileView(store: store)
             } label: {
-                ProfileLinkRow(systemImage: "person.crop.rectangle", title: "Fit photo", detail: "Replace or remove")
+                ProfileLinkRow(
+                    systemImage: "person.crop.rectangle",
+                    title: "Fit photo & body video",
+                    // Surfaces the capture state here so the feed's invitation
+                    // does not dead-end on a settings list.
+                    detail: store.hasBodyCapture ? "Motion try-on on" : "Add body video"
+                )
             }
             NavigationLink {
                 TasteProfileView(store: store)
@@ -114,6 +120,7 @@ struct ProfileView: View {
 struct FitProfileView: View {
     @ObservedObject var store: AppStore
     @State private var selectedPhoto: PhotosPickerItem?
+    @State private var selectedBodyVideo: PhotosPickerItem?
     @State private var confirmsRemoval = false
 
     var body: some View {
@@ -152,6 +159,8 @@ struct FitProfileView: View {
                 .buttonStyle(CloakPrimaryButtonStyle())
                 .disabled(store.isLoading)
 
+                bodyCaptureSection
+
                 Button(role: .destructive) {
                     confirmsRemoval = true
                 } label: {
@@ -183,6 +192,49 @@ struct FitProfileView: View {
                 await store.createProfile(from: item)
                 selectedPhoto = nil
             }
+        }
+        .onChange(of: selectedBodyVideo) { _, item in
+            guard let item else { return }
+            Task {
+                await store.uploadBodyVideo(from: item)
+                selectedBodyVideo = nil
+            }
+        }
+    }
+
+    /// Motion looks are generated against a short clip of the user, not the
+    /// still fit photo, so the capture lives alongside it.
+    private var bodyCaptureSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Rectangle()
+                .fill(CloakTheme.line)
+                .frame(height: 1)
+                .padding(.vertical, 4)
+
+            Text("BODY VIDEO")
+                .font(.caption2.weight(.bold))
+                .tracking(1.2)
+                .foregroundStyle(CloakTheme.action)
+
+            Text(store.hasBodyCapture ? "Motion try-on is on" : "See looks move on you")
+                .font(.system(.title2, design: .serif, weight: .medium))
+                .foregroundStyle(CloakTheme.ink)
+
+            Text("A few seconds of you turning. Recorded once and reused for every look, so results move instead of standing still. Without it, looks are generated as stills.")
+                .font(.subheadline)
+                .foregroundStyle(CloakTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            PhotosPicker(selection: $selectedBodyVideo, matching: .videos) {
+                Label(
+                    store.hasBodyCapture ? "Replace body video" : "Add body video",
+                    systemImage: "video.badge.plus"
+                )
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(CloakSecondaryButtonStyle())
+            .disabled(store.isLoading)
+            .padding(.top, 4)
         }
     }
 }

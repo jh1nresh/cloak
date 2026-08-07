@@ -5,6 +5,10 @@ export type User = {
   avatar_url: string;
   height_cm: number | null;
   weight_kg: number | null;
+  body_video_url: string | null;
+  body_video_poster_url: string | null;
+  body_video_duration_ms: number | null;
+  body_video_captured_at: string | null;
   created_at: string;
 };
 
@@ -152,8 +156,23 @@ export async function createUser(input: {
 }
 
 export async function getUserById(id: string) {
-  const { rows } = await getPool().query<Pick<User, "id" | "avatar_url">>(
-    "select id, avatar_url from users where id = $1",
+  const { rows } = await getPool().query<
+    Pick<
+      User,
+      | "id"
+      | "avatar_url"
+      | "body_video_url"
+      | "body_video_poster_url"
+      | "body_video_duration_ms"
+    >
+  >(
+    `select id,
+            avatar_url,
+            body_video_url,
+            body_video_poster_url,
+            body_video_duration_ms
+     from users
+     where id = $1`,
     [id]
   );
 
@@ -428,6 +447,132 @@ export async function insertItemImages(
   );
 
   return rows;
+}
+
+export async function setUserBodyVideo(
+  userId: string,
+  input: {
+    videoUrl: string;
+    posterUrl: string;
+    durationMs: number | null;
+  }
+) {
+  const { rows } = await getPool().query<User>(
+    `update users
+     set body_video_url = $2,
+         body_video_poster_url = $3,
+         body_video_duration_ms = $4,
+         body_video_captured_at = now()
+     where id = $1
+     returning *`,
+    [userId, input.videoUrl, input.posterUrl, input.durationMs]
+  );
+
+  return rows[0] || null;
+}
+
+/// Motion looks have no `tryons` row — they are generated straight against the
+/// stored body capture, so the look itself is the job record.
+export async function insertMotionLook(input: {
+  id: string;
+  userId: string;
+  savedItemId: string | null;
+  sourceImageId: string | null;
+  provider: string;
+  providerJobId: string | null;
+}) {
+  const { rows } = await getPool().query<Look>(
+    `insert into looks (
+       id,
+       user_id,
+       saved_item_id,
+       source_image_id,
+       pipeline,
+       status,
+       provider,
+       provider_job_id
+     )
+     values ($1, $2, $3, $4, 'motion', 'processing', $5, $6)
+     returning *`,
+    [
+      input.id,
+      input.userId,
+      input.savedItemId,
+      input.sourceImageId,
+      input.provider,
+      input.providerJobId,
+    ]
+  );
+
+  return rows[0] || null;
+}
+
+export async function getLookById(id: string) {
+  const { rows } = await getPool().query<Look>(
+    `select * from looks where id = $1`,
+    [id]
+  );
+
+  return rows[0] || null;
+}
+
+export async function updateLook(
+  id: string,
+  fields: Partial<
+    Pick<
+      Look,
+      | "status"
+      | "result_url"
+      | "video_url"
+      | "provider_job_id"
+      | "error_message"
+    >
+  >
+) {
+  const allowedColumns = new Set([
+    "status",
+    "result_url",
+    "video_url",
+    "provider_job_id",
+    "error_message",
+  ]);
+  const entries = Object.entries(fields).filter(
+    ([, value]) => value !== undefined
+  );
+
+  if (!entries.length) return null;
+
+  for (const [key] of entries) {
+    if (!allowedColumns.has(key)) {
+      throw new Error(`Invalid look update column: ${key}`);
+    }
+  }
+
+  const assignments = entries.map(([key], index) => `${key} = $${index + 2}`);
+  const values = entries.map(([, value]) => value);
+  const { rows } = await getPool().query<Look>(
+    `update looks
+     set ${assignments.join(", ")}, updated_at = now()
+     where id = $1
+     returning *`,
+    [id, ...values]
+  );
+
+  return rows[0] || null;
+}
+
+/// Claims a completed motion look for finalization so concurrent polls cannot
+/// both upload the result. Mirrors lockTryOnForFinalizing.
+export async function lockLookForFinalizing(id: string) {
+  const { rows } = await getPool().query<Look>(
+    `update looks
+     set status = 'finalizing', updated_at = now()
+     where id = $1 and status = 'processing'
+     returning *`,
+    [id]
+  );
+
+  return rows[0] || null;
 }
 
 export async function insertLook(input: {
