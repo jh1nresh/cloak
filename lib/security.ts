@@ -18,6 +18,9 @@ const rateLimitBuckets = new Map<string, RateLimitBucket>();
 export const MAX_AVATAR_BYTES = 8 * 1024 * 1024;
 export const MAX_GARMENT_DATA_URL_BYTES = 10 * 1024 * 1024;
 export const MAX_SCRAPE_HTML_BYTES = 2 * 1024 * 1024;
+/// A 3s body capture. Well under Decart's 200MB input ceiling — the cap is
+/// here to bound upload cost, not to match the provider.
+export const MAX_BODY_VIDEO_BYTES = 25 * 1024 * 1024;
 
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -26,6 +29,8 @@ const ALLOWED_IMAGE_TYPES = new Set([
   "image/heic",
   "image/heif",
 ]);
+
+const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime"]);
 
 export class InputValidationError extends Error {
   status: number;
@@ -87,6 +92,38 @@ export function assertValidImageFile(file: File, maxBytes = MAX_AVATAR_BYTES) {
 
   if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
     throw new InputValidationError("Unsupported image type");
+  }
+}
+
+export function assertValidVideoFile(
+  file: File,
+  maxBytes = MAX_BODY_VIDEO_BYTES
+) {
+  if (!file.size || file.size > maxBytes) {
+    throw new InputValidationError(
+      `Video must be smaller than ${maxBytes} bytes`,
+      413
+    );
+  }
+
+  if (!ALLOWED_VIDEO_TYPES.has(file.type)) {
+    throw new InputValidationError("Unsupported video type");
+  }
+}
+
+/// MP4 and QuickTime both carry an `ftyp` box at offset 4.
+export function assertValidVideoBytes(bytes: Uint8Array) {
+  const hasFtyp =
+    bytes.length > 12 &&
+    bytes[4] === 0x66 &&
+    bytes[5] === 0x74 &&
+    bytes[6] === 0x79 &&
+    bytes[7] === 0x70;
+
+  if (!hasFtyp) {
+    throw new InputValidationError(
+      "Video contents do not match the declared type"
+    );
   }
 }
 

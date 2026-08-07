@@ -3,6 +3,10 @@ import Foundation
 struct FitProfile: Codable, Equatable {
     let userId: String
     let avatarUrl: URL
+    /// The stored body capture motion looks are generated against. Absent
+    /// until the user records one.
+    var bodyVideoUrl: URL?
+    var bodyVideoPosterUrl: URL?
 }
 
 enum AppTab: String, CaseIterable, Identifiable {
@@ -340,4 +344,48 @@ struct FeedToast: Identifiable, Equatable {
     let id = UUID()
     let text: String
     let garmentKey: String?
+}
+
+struct BodyVideoResponse: Decodable, Equatable {
+    let bodyVideoUrl: URL
+    let posterUrl: URL?
+    let durationMs: Int?
+}
+
+struct MotionLookResponse: Decodable {
+    let lookId: UUID
+    let status: String
+}
+
+/// A `looks` row as returned by the poll route.
+struct LookResponse: Decodable, Equatable {
+    let id: UUID
+    let pipeline: String
+    let status: TryOn.Status
+    let resultUrl: URL?
+    let videoUrl: URL?
+    let errorMessage: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case pipeline
+        case status
+        case resultUrl = "result_url"
+        case videoUrl = "video_url"
+        case errorMessage = "error_message"
+    }
+}
+
+extension LookResponse {
+    /// The feed tracks one in-flight job regardless of which pipeline produced
+    /// it, so a polled look is mapped onto the same shape.
+    var asTryOn: TryOn {
+        TryOn(
+            id: id,
+            status: status,
+            resultUrl: resultUrl,
+            videoUrl: videoUrl,
+            errorMessage: errorMessage
+        )
+    }
 }

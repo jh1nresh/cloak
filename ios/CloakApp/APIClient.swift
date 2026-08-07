@@ -5,6 +5,9 @@ enum APIClientError: LocalizedError {
     case badResponse
     case server(String)
     case missingResult
+    /// The user has no stored body capture. Distinct from a generic failure so
+    /// the client can route to capture instead of showing an error.
+    case bodyVideoMissing
 
     var errorDescription: String? {
         switch self {
@@ -16,6 +19,8 @@ enum APIClientError: LocalizedError {
             return message
         case .missingResult:
             return "The server did not return a result."
+        case .bodyVideoMissing:
+            return "Record a body video to see looks on you."
         }
     }
 }
@@ -141,6 +146,56 @@ struct APIClient {
         try await send(path: "/api/tryon/\(id.uuidString)")
     }
 
+    /// Stores the one-time body capture every motion look is generated against.
+    func uploadBodyVideo(
+        userId: String,
+        videoData: Data,
+        contentType: String = "video/mp4"
+    ) async throws -> BodyVideoResponse {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        let body = multipartBody(
+            boundary: boundary,
+            fields: ["userId": userId],
+            fileField: "video",
+            filename: "body.\(contentType == "video/quicktime" ? "mov" : "mp4")",
+            contentType: contentType,
+            data: videoData
+        )
+
+        return try await send(
+            path: "/api/body-video",
+            method: "POST",
+            body: body,
+            contentType: "multipart/form-data; boundary=\(boundary)"
+        )
+    }
+
+    func createMotionLook(userId: String, garment: Garment) async throws -> UUID {
+        var payload: [String: String] = ["userId": userId]
+
+        if let id = garment.id {
+            payload["garmentId"] = id.uuidString
+            if let savedItemId = garment.savedItemId {
+                payload["savedItemId"] = savedItemId.uuidString
+            }
+        } else {
+            payload["garmentImageUrl"] = garment.imageUrl.absoluteString
+        }
+
+        let body = try encoder.encode(payload)
+        let response: MotionLookResponse = try await send(
+            path: "/api/looks/motion",
+            method: "POST",
+            body: body,
+            contentType: "application/json"
+        )
+        return response.lookId
+    }
+
+    func fetchLook(id: UUID) async throws -> LookResponse {
+        try await send(path: "/api/looks/\(id.uuidString)")
+    }
+
     private func send<T: Decodable>(
         path: String,
         method: String = "GET",
@@ -167,6 +222,9 @@ struct APIClient {
 
         if !(200..<300).contains(httpResponse.statusCode) {
             if let apiError = try? decoder.decode(APIErrorResponse.self, from: data) {
+                if apiError.error == "body_video_missing" {
+                    throw APIClientError.bodyVideoMissing
+                }
                 throw APIClientError.server(apiError.detail ?? apiError.error)
             }
             throw APIClientError.server("Request failed with status \(httpResponse.statusCode).")
