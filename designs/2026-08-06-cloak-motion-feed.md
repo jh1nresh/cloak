@@ -199,6 +199,29 @@ Carrying the production spec's ethics onto a dark surface:
   in dead zones, and labeled text buttons instead of icon grids. Hold that
   line in implementation.
 
+## Fitting Room (P4) — Direction Sketch
+
+The second surface of the same engine (see spec § Two try-on surfaces). Not
+designed in detail here — direction constraints only, so the feed's system
+extends instead of forking:
+
+- Same `stage` dark system as the feed. The fitting room is the feed's
+  full-intent sibling, not a new aesthetic.
+- Entered deliberately from the shortlist ("Try these on live"), never
+  ambiently. Session framing: explicit start, visible LIVE indicator with
+  elapsed time, hard cap ~3 min with one-tap extend. The meter is honest —
+  never hidden.
+- Layout: live mirror full-bleed; the shortlist as a horizontal thumbnail rail
+  at the bottom (glass), tap or swipe to swap garments in place. No vertical
+  paging — this surface compares, it does not browse.
+- The rail is the one place a horizontal element exists in the app; it earns
+  it because comparison is horizontal by nature.
+- Exit state is a decision: each garment card carries `Buy` with the size
+  pre-selected (P2). Ending a session without choosing prompts once — "keep
+  your favorite?" — then lets go. No guilt loops.
+- Reduce Motion / camera-denied: fitting room falls back to the batch feed
+  gracefully; it is an enhancement tier, never the only path to purchase.
+
 ## Open Questions (need JhiNResH's call)
 
 1. Swipe-left on a page → detail sheet or push? Production spec used sheets
