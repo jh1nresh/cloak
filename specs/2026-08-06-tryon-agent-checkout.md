@@ -92,6 +92,26 @@ L2  Size prediction    height/weight + size chart    ← P2
 L3  Agent checkout     UCP cart + ACP payment        ← P3, gated on P0 spike
 ```
 
+### Two try-on surfaces
+
+Motion try-on ships as two complementary modes of the same engine, not two
+versions of one feature. They differ in intent, posture, and billing:
+
+| | Feed (P1) | Fitting Room (P4) |
+|---|---|---|
+| Mode | batch, async | realtime, WebRTC live mirror |
+| Subject input | stored 3s body video, reused | live camera, session-scoped |
+| Posture | one-handed, lying down, browsing | standing, phone propped, deciding |
+| Billing | $0.04/sec → **$0.12 per garment** | $0.02/sec → **$1.2 per minute** |
+| Garment switching | one job per garment | `set()` swaps garment mid-session, no reconnect |
+| Intent | discovery — build the shortlist | decision — compare shortlist, pick one |
+| Exit | save / skip | **agent checkout: "buy this one in M"** |
+
+The funnel is feed → shortlist → fitting room → purchase. The fitting room is
+the highest-conversion moment in the product: a user willing to stand in front
+of the camera is a user deciding to buy. Its per-minute cost is a conversion
+expense, not a rendering expense.
+
 ### The digital body
 
 The user records **one** 3-second turn video during onboarding. It is stored
@@ -324,4 +344,5 @@ data and the P0 checkout answer exist.
 | Return rate above store average → merchants block the channel | Capture fit feedback from P1; treat return rate as the product's primary metric, not engagement |
 | Body-video capture kills onboarding conversion | Measure drop-off at the capture step; keep the Fashn still-image path as an opt-out |
 | Decart pricing or availability changes | `lib/decart.ts` mirrors `lib/fashn.ts` behind the same provider shape; `looks.provider` already distinguishes them |
+| Supplier competes downstream: Decart ships Anywear, its own consumer try-on (Chrome extension, desktop, free beta) | Accepted — render is rented by design. Cloak's assets (wardrobe memory, size data, order/return loop, mobile) are ones Anywear structurally lacks; if Decart moves onto mobile+checkout, the provider abstraction is the exit |
 | Storing a video of the user raises the privacy bar above a selfie | Explicit consent copy at capture, deletion control in `ProfileView`, cover in the security review note |
