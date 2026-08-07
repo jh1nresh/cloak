@@ -61,6 +61,43 @@ export async function uploadImage(
   });
 }
 
+export async function uploadVideo(
+  videoBuffer: Buffer,
+  folder: string,
+  publicId: string
+): Promise<{ url: string; posterUrl: string; durationMs: number | null }> {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream(
+        { folder, public_id: publicId, resource_type: "video" },
+        (error, result) => {
+          if (error) {
+            reject(error);
+          } else if (result) {
+            resolve({
+              url: result.secure_url,
+              // Poster frames are free — the same asset rendered as a still,
+              // so the grid never needs a second generation.
+              posterUrl: posterFrameUrl(result.secure_url),
+              durationMs:
+                typeof result.duration === "number"
+                  ? Math.round(result.duration * 1000)
+                  : null,
+            });
+          } else {
+            reject(new Error("Video upload failed"));
+          }
+        }
+      )
+      .end(videoBuffer);
+  });
+}
+
+/// Cloudinary renders a still from a stored video by swapping the extension.
+export function posterFrameUrl(videoUrl: string) {
+  return videoUrl.replace(/\.(mp4|mov|webm|m4v)$/i, ".jpg");
+}
+
 export { cloudinary };
 
 function formatForContentType(contentType?: string) {
