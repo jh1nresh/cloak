@@ -21,9 +21,9 @@ struct RootView: View {
         Group {
             if store.profile == nil {
                 OnboardingView(store: store)
-            } else if store.activeTryOn != nil {
-                ResultView(store: store)
             } else {
+                // Generation state belongs to the feed page, not a takeover
+                // screen — the user keeps paging while a look renders.
                 AppShellView(store: store)
             }
         }

@@ -21,81 +21,81 @@ struct AppShellView: View {
             }
 
             if !store.isImportPresented && !store.isTabBarHidden {
-                CloakTabBar(
-                    selection: $store.selectedTab,
-                    onImport: store.presentImport
-                )
-                .padding(.horizontal, 14)
-                .padding(.bottom, 8)
+                CloakTabBar(selection: $store.selectedTab)
             }
         }
         .ignoresSafeArea(.keyboard)
     }
 }
 
+/// Three destinations, native height, at the safe-area edge. Import is a
+/// command in Today's toolbar, not a tab — the bar never floats over decision
+/// content.
 private struct CloakTabBar: View {
     @Binding var selection: AppTab
-    let onImport: () -> Void
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
+    private var isOverStage: Bool { selection == .discover }
+
     var body: some View {
-        HStack(spacing: 4) {
-            tabButton(.discover)
-            tabButton(.closet)
-
-            Button(action: onImport) {
-                Image(systemName: "plus")
-                    .font(.system(size: 19, weight: .bold))
-                    .foregroundStyle(CloakTheme.surface)
-                    .frame(width: 52, height: 44)
-                    .background(CloakTheme.action)
-                    .overlay(Rectangle().stroke(CloakTheme.surface.opacity(0.18)))
+        HStack(spacing: 0) {
+            ForEach(AppTab.allCases) { tab in
+                tabButton(tab)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Import a piece")
-
-            tabButton(.profile)
         }
-        .padding(6)
+        .frame(height: 49)
+        .frame(maxWidth: .infinity)
         .background {
-            if reduceTransparency {
-                CloakTheme.ink
-            } else {
-                Rectangle().fill(.ultraThinMaterial)
+            ZStack {
+                if !reduceTransparency {
+                    Rectangle().fill(.ultraThinMaterial)
+                }
+                Rectangle().fill(surfaceTint)
             }
+            .ignoresSafeArea(edges: .bottom)
         }
-        .background(CloakTheme.ink.opacity(0.72))
-        .overlay(Rectangle().stroke(CloakTheme.surface.opacity(0.2)))
-        .shadow(color: CloakTheme.ink.opacity(0.24), radius: 18, y: 7)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(separator)
+                .frame(height: 0.5)
+        }
+        .environment(\.colorScheme, isOverStage ? .dark : .light)
+    }
+
+    private var surfaceTint: Color {
+        if isOverStage {
+            return CloakTheme.stage.opacity(reduceTransparency ? 1 : 0.62)
+        }
+        return CloakTheme.paper.opacity(reduceTransparency ? 1 : 0.80)
+    }
+
+    private var separator: Color {
+        isOverStage
+            ? CloakTheme.stageInk.opacity(reduceTransparency ? 0.64 : 0.10)
+            : CloakTheme.paperInk.opacity(0.12)
     }
 
     private func tabButton(_ tab: AppTab) -> some View {
         Button {
             selection = tab
         } label: {
-            VStack(spacing: 3) {
-                Image(systemName: selection == tab ? selectedSymbol(for: tab) : tab.systemImage)
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(height: 20)
-                Text(tab.title)
-                    .font(.system(size: 9, weight: .semibold))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(selection == tab ? CloakTheme.surface : CloakTheme.surface.opacity(0.58))
-            .frame(maxWidth: .infinity)
-            .frame(height: 44)
-            .contentShape(Rectangle())
+            Text(tab.title)
+                .font(.caption2.weight(selection == tab ? .semibold : .medium))
+                .foregroundStyle(foreground(for: tab))
+                .frame(maxWidth: .infinity)
+                .frame(height: 49)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(tab.title)
         .accessibilityAddTraits(selection == tab ? .isSelected : [])
     }
 
-    private func selectedSymbol(for tab: AppTab) -> String {
-        switch tab {
-        case .discover: "sparkles"
-        case .closet: "hanger"
-        case .profile: "person.crop.circle.fill"
+    private func foreground(for tab: AppTab) -> Color {
+        let selected = selection == tab
+        if isOverStage {
+            return selected ? CloakTheme.stageInk : CloakTheme.stageInk.opacity(0.5)
         }
+        return selected ? CloakTheme.paperInk : CloakTheme.paperInk.opacity(0.68)
     }
 }

@@ -1,63 +1,66 @@
 import PhotosUI
 import SwiftUI
 
+/// Today: a full-bleed motion feed. One look per viewport, deterministic
+/// paging, no nested scrolling. Everything that does not fit opens the sheet.
 struct FeedView: View {
     @ObservedObject var store: AppStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedGarment: PhotosPickerItem?
+    @State private var activePageID: String?
+    @State private var segmentByLook: [String: Bool] = [:]
+    @State private var heldLookID: String?
+    @State private var sheetLook: FeedLook?
+
+    private var looks: [FeedLook] { store.feedLooks }
+
+    /// The capture invitation occupies the first page until a body capture
+    /// exists, so the feed never silently shows retailer stills without saying
+    /// why.
+    private var showsCaptureInvite: Bool {
+        !store.hasBodyCapture && !looks.isEmpty
+    }
 
     var body: some View {
+        GeometryReader { root in
+            content(bottomInset: FeedView.tabBarHeight + root.safeAreaInsets.bottom)
+        }
+    }
+
+    /// Tab bar content height. The bar's own background bleeds into the safe
+    /// area, so decision controls must clear both.
+    private static let tabBarHeight: CGFloat = 49
+
+    private func content(bottomInset: CGFloat) -> some View {
         ZStack {
-            CloakTheme.ink.ignoresSafeArea()
+            CloakTheme.stage.ignoresSafeArea()
 
-            ScrollView(.vertical) {
-                LazyVStack(spacing: 0) {
-                    if store.garments.isEmpty && !store.isLoading {
-                        EmptyFeedView {
-                            store.presentImport()
-                        }
-                        .containerRelativeFrame(.vertical)
-                    }
-
-                    ForEach(Array(store.garments.enumerated()), id: \.offset) { _, garment in
-                        GarmentCard(
-                            garment: garment,
-                            evidence: store.wardrobeEvidence(for: garment),
-                            isSaved: store.isSaved(garment),
-                            isLoading: store.isLoading,
-                            onTryOn: {
-                                Task {
-                                    await store.tryOn(garment)
-                                }
-                            },
-                            onSave: {
-                                Task {
-                                    await store.save(garment)
-                                }
-                            },
-                            onSkip: {
-                                Task {
-                                    await store.skip(garment)
-                                }
-                            },
-                            onOpenRetailer: {
-                                Task {
-                                    await store.buy(garment)
-                                }
-                            }
-                        )
-                        .containerRelativeFrame(.vertical)
-                    }
-                }
-                .scrollTargetLayout()
+            if looks.isEmpty && !store.isLoading {
+                EmptyFeedView { store.presentImport() }
+            } else {
+                pager(bottomInset: bottomInset)
             }
-            .scrollIndicators(.hidden)
-            .scrollTargetBehavior(.paging)
-            .ignoresSafeArea()
 
-            VStack {
-                TopChrome()
-                Spacer()
+            FeedToolbar(
+                label: "For you",
+                onAdd: { store.presentImport() }
+            )
+            .frame(maxHeight: .infinity, alignment: .top)
+
+            if let toast = store.toast {
+                UndoToast(
+                    text: toast.text,
+                    onUndo: { store.undoSave() }
+                )
+                .padding(.horizontal, 18)
+                // Clears the action row rather than covering it.
+                .padding(.bottom, bottomInset + 88)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                .task(id: toast.id) {
+                    try? await Task.sleep(for: .seconds(3.2))
+                    store.dismissToast()
+                }
             }
 
             if store.isImportPresented {
@@ -72,9 +75,7 @@ struct FeedView: View {
                             }
                         }
                     },
-                    onClose: {
-                        store.isImportPresented = false
-                    },
+                    onClose: { store.isImportPresented = false },
                     uploadPicker: {
                         PhotosPicker(selection: $selectedGarment, matching: .images) {
                             Label("Upload garment image", systemImage: "photo.badge.plus")
@@ -91,170 +92,450 @@ struct FeedView: View {
             }
         }
         .animation(reduceMotion ? .linear(duration: 0.15) : .easeOut(duration: 0.22), value: store.isImportPresented)
+        .animation(reduceMotion ? .linear(duration: 0.15) : .easeOut(duration: 0.22), value: store.toast)
+        .sheet(item: $sheetLook) { look in
+            LookDetailSheet(
+                look: look,
+                primaryLabel: primaryLabel(for: look),
+                onPrimary: {
+                    sheetLook = nil
+                    performPrimary(for: look)
+                },
+                onSkip: {
+                    sheetLook = nil
+                    Task { await store.skip(look.garment) }
+                },
+                onBuy: {
+                    sheetLook = nil
+                    Task { await store.buy(look.garment) }
+                },
+                onClose: { sheetLook = nil }
+            )
+            .presentationDetents([.fraction(0.74)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(22)
+        }
         .task {
             await store.loadFeed()
         }
+        .task(id: store.activeTryOn?.id) {
+            await pollActiveLook()
+        }
         .onChange(of: selectedGarment) { _, newItem in
-            guard let newItem else {
-                return
-            }
+            guard newItem != nil else { return }
             Task {
-                await store.addLocalGarment(from: newItem)
+                await store.addLocalGarment(from: newItem!)
                 selectedGarment = nil
                 store.isImportPresented = false
             }
         }
     }
+
+    private func pager(bottomInset: CGFloat) -> some View {
+        ScrollView(.vertical) {
+            LazyVStack(spacing: 0) {
+                if showsCaptureInvite {
+                    CaptureInvitePage(
+                        onRecord: { store.selectedTab = .profile },
+                        onDismiss: {}
+                    )
+                    .containerRelativeFrame(.vertical)
+                    .id(FeedView.invitePageID)
+                }
+
+                ForEach(Array(looks.enumerated()), id: \.element.id) { index, look in
+                    LookPage(
+                        look: look,
+                        index: index,
+                        total: looks.count,
+                        bottomInset: bottomInset,
+                        hasBodyCapture: store.hasBodyCapture,
+                        showsMe: segmentBinding(for: look),
+                        isActive: activePageID == look.id,
+                        isHeld: heldLookID == look.id,
+                        primaryLabel: primaryLabel(for: look),
+                        onPrimary: { performPrimary(for: look) },
+                        onBuy: { Task { await store.buy(look.garment) } },
+                        onOpenDetail: { sheetLook = look },
+                        onDoubleTap: {
+                            guard store.hasBodyCapture else { return }
+                            Task { await store.saveWithUndo(look.garment) }
+                        },
+                        onHoldChanged: { held in
+                            heldLookID = held ? look.id : nil
+                        }
+                    )
+                    .containerRelativeFrame(.vertical)
+                    .id(look.id)
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollIndicators(.hidden)
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $activePageID, anchor: .center)
+        .ignoresSafeArea()
+        .onAppear {
+            if activePageID == nil {
+                activePageID = showsCaptureInvite ? FeedView.invitePageID : looks.first?.id
+            }
+        }
+    }
+
+    private static let invitePageID = "cloak.capture-invite"
+
+    /// Drives the GENERATING chip to a resolution without leaving the feed.
+    private func pollActiveLook() async {
+        while store.activeTryOn?.status.isInFlight == true {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            await store.refreshActiveTryOn()
+        }
+        // Release the slot so the next try-on can start; the finished look
+        // resolves from completedLooks afterwards.
+        store.finalizeActiveLookIfComplete()
+    }
+
+    private func segmentBinding(for look: FeedLook) -> Binding<Bool> {
+        Binding(
+            get: {
+                // Default to Me only when a completed result actually exists.
+                segmentByLook[look.id] ?? (look.hasResult && store.hasBodyCapture)
+            },
+            set: { segmentByLook[look.id] = $0 }
+        )
+    }
+
+    private func primaryLabel(for look: FeedLook) -> String {
+        if !store.hasBodyCapture { return "See it on you" }
+        switch look.status {
+        case .failed: return "Retry"
+        case .notStarted: return "See it on you"
+        case .queued, .processing, .finalizing: return "Generating"
+        case .completed: return look.isSaved ? "Saved" : "Save"
+        }
+    }
+
+    private func performPrimary(for look: FeedLook) {
+        guard store.hasBodyCapture else {
+            store.selectedTab = .profile
+            return
+        }
+        switch look.status {
+        case .notStarted, .failed:
+            Task { await store.tryOn(look.garment) }
+        case .queued, .processing, .finalizing:
+            break
+        case .completed:
+            Task { await store.saveWithUndo(look.garment) }
+        }
+    }
 }
 
-struct GarmentCard: View {
-    let garment: Garment
-    let evidence: WardrobeEvidence?
-    let isSaved: Bool
-    let isLoading: Bool
-    let onTryOn: () -> Void
-    let onSave: () -> Void
-    let onSkip: () -> Void
-    let onOpenRetailer: () -> Void
+// MARK: - One page
+
+private struct LookPage: View {
+    let look: FeedLook
+    let index: Int
+    let total: Int
+    let bottomInset: CGFloat
+    let hasBodyCapture: Bool
+    @Binding var showsMe: Bool
+    let isActive: Bool
+    let isHeld: Bool
+    let primaryLabel: String
+    let onPrimary: () -> Void
+    let onBuy: () -> Void
+    let onOpenDetail: () -> Void
+    let onDoubleTap: () -> Void
+    let onHoldChanged: (Bool) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isMeEnabled: Bool { look.hasResult && hasBodyCapture }
+    private var showingMe: Bool { showsMe && isMeEnabled }
 
     var body: some View {
+        // The fill media reports an oversized ideal width, so the page is
+        // pinned to the viewport before anything else lays out against it.
         GeometryReader { proxy in
-            ZStack(alignment: .bottom) {
-                GarmentImageView(garment: garment)
-                    .ignoresSafeArea()
-
-                CloakTheme.imageScrim
-                    .ignoresSafeArea()
-
-                sourceChrome
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(.top, 68)
-                    .padding(.horizontal, 18)
-
-                actionRail
-                    .position(
-                        x: max(42, proxy.size.width - 42),
-                        y: proxy.size.height * (evidence == nil ? 0.58 : 0.46)
-                    )
-
-                glassPanel
-                    .frame(width: proxy.size.width)
+            ZStack {
+                media
+                CloakTheme.stageScrimTop
+                    .frame(height: 96)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(false)
+                CloakTheme.stageScrimBottom
+                    .frame(height: proxy.size.height * 0.34)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .allowsHitTesting(false)
+                statusChip
+                controls
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
-            .background(CloakTheme.ink)
+            .clipped()
+        }
+        .background(CloakTheme.stage)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(
+            look.accessibilityDescription(index: index, total: total, showingMe: showingMe)
+        )
+    }
+
+    private var media: some View {
+        Group {
+            if showingMe {
+                MotionMediaView(
+                    posterUrl: look.resultUrl,
+                    videoUrl: look.videoUrl,
+                    isActive: isActive,
+                    isHeld: isHeld
+                )
+            } else {
+                RemoteFillImage(url: look.originalUrl, localData: look.garment.localImageData)
+            }
+        }
+        .contentShape(Rectangle())
+        // Double tap saves. A single tap does nothing — ambiguous single-tap
+        // targets on a full-bleed surface destroy trust.
+        .onTapGesture(count: 2, perform: onDoubleTap)
+        // Press and hold pauses for inspection. Pausing only after the minimum
+        // duration keeps taps and scroll drags from triggering it.
+        .onLongPressGesture(minimumDuration: 0.25) {
+            onHoldChanged(true)
+        } onPressingChanged: { pressing in
+            if !pressing { onHoldChanged(false) }
+        }
+        .onChange(of: isActive) { _, active in
+            if !active { onHoldChanged(false) }
         }
     }
 
-    private var sourceChrome: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text(garment.isLocal ? "Uploaded" : "Imported")
-                .font(.caption2.weight(.bold))
-            Text(garment.domain ?? garment.brand ?? "Garment image")
-                .font(.caption2)
-                .foregroundStyle(CloakTheme.surface.opacity(0.76))
-                .lineLimit(1)
-        }
-        .foregroundStyle(CloakTheme.surface)
-        .shadow(color: CloakTheme.ink.opacity(0.42), radius: 8, y: 2)
-    }
-
-    private var actionRail: some View {
-        VStack(spacing: 13) {
-            CloakRailAction(
-                systemImage: isSaved ? "bookmark.fill" : "bookmark",
-                title: isSaved ? "Saved" : "Save",
-                action: onSave
-            )
-            CloakRailAction(systemImage: "xmark", title: "Skip", action: onSkip)
-            CloakRailAction(
-                systemImage: "sparkles",
-                title: isLoading ? "Working" : "Try on",
-                isPrimary: true,
-                action: onTryOn
-            )
-            .disabled(isLoading)
+    @ViewBuilder
+    private var statusChip: some View {
+        if hasBodyCapture, let chip = look.statusChip {
+            CloakStatusChip(label: chip, isGenerating: look.status.isInFlight)
+                .frame(maxHeight: .infinity, alignment: .center)
+                .offset(y: -40)
+                .allowsHitTesting(false)
         }
     }
 
-    private var glassPanel: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Capsule()
-                .fill(CloakTheme.surface.opacity(0.56))
-                .frame(width: 38, height: 4)
-                .frame(maxWidth: .infinity)
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            CloakStageSegment(showsMe: $showsMe, isMeEnabled: isMeEnabled)
+                .frame(maxWidth: .infinity, alignment: .trailing)
 
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(evidence == nil ? pipelineLabel : "YOUR CLOSET")
-                        .font(.caption2.weight(.bold))
-                        .tracking(1.1)
-                        .foregroundStyle(CloakTheme.actionSoft)
-                    Text(garment.title ?? "Untitled garment")
-                        .font(.system(.title2, design: .serif, weight: .medium))
-                        .foregroundStyle(CloakTheme.surface)
-                        .lineLimit(2)
-                }
-                .layoutPriority(1)
-                Spacer(minLength: 8)
-                Text("NOT OWNED")
-                    .font(.system(size: 9, weight: .bold))
-                    .tracking(0.8)
-                    .padding(.horizontal, 8)
-                    .frame(height: 28)
-                    .foregroundStyle(CloakTheme.surface)
-                    .background(CloakTheme.surface.opacity(0.1))
-                    .overlay(Rectangle().stroke(CloakTheme.surface.opacity(0.38)))
-            }
-            .padding(.top, 12)
+            metadata
 
-            HStack(spacing: 8) {
-                if let brand = garment.brand {
-                    Text(brand)
-                }
-                if garment.brand != nil, garment.price != nil {
-                    Text("/")
-                }
-                if let price = garment.price {
-                    Text(price)
-                }
-                Spacer()
-                if garment.sourceUrl != nil {
-                    Button(action: onOpenRetailer) {
-                        Label("View source", systemImage: "arrow.up.right")
-                    }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(CloakTheme.surface)
-                    .buttonStyle(.plain)
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(CloakTheme.surface.opacity(0.7))
-            .padding(.top, 8)
+            HStack(spacing: 9) {
+                Button(primaryLabel, action: onPrimary)
+                    .buttonStyle(StageOutlineButtonStyle(isConfirmed: primaryLabel == "Saved"))
+                    .disabled(look.status.isInFlight)
 
-            if let evidence {
-                CloakWardrobeEvidenceView(evidence: evidence)
-                    .padding(.top, 12)
+                Button("Buy it", action: onBuy)
+                    .buttonStyle(StageFilledButtonStyle())
             }
+            .padding(8)
+            .cloakStageGlass(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .padding(.horizontal, 18)
-        .padding(.top, 10)
-        .padding(.bottom, 128)
-        .background {
-            CloakGlassBackground()
-                .ignoresSafeArea(edges: .bottom)
-        }
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(CloakTheme.surface.opacity(0.24))
-                .frame(height: 1)
-        }
+        .padding(.bottom, bottomInset + 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 
-    private var pipelineLabel: String {
-        garment.recommendedPipeline == .modelSwap ? "Model swap available" : "Virtual try-on"
-    }
+    private var metadata: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let brand = look.brand {
+                Text(brand)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(CloakTheme.stageInk)
+            }
 
+            Button(action: onOpenDetail) {
+                Text(look.title)
+                    .font(.system(.title3, design: .serif, weight: .medium))
+                    .foregroundStyle(CloakTheme.stageInk)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(look.title). Open detail")
+
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                if let price = look.price {
+                    Text(price).foregroundStyle(CloakTheme.stageInk)
+                }
+                if look.price != nil {
+                    Text("·").foregroundStyle(CloakTheme.stageInk.opacity(0.4))
+                }
+                Text(look.ownershipLabel)
+                    .font(.caption2.weight(.semibold))
+                    .tracking(1)
+                    .foregroundStyle(
+                        look.isOwned ? CloakTheme.stageOwned : CloakTheme.stageInk.opacity(0.64)
+                    )
+            }
+            .font(.footnote)
+
+            if hasBodyCapture, let summary = look.evidenceSummary {
+                Button(action: onOpenDetail) {
+                    Text("\(summary) ›")
+                        .font(.caption)
+                        .foregroundStyle(CloakTheme.stageEvidence)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: 290, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
+
+// MARK: - Capture invitation
+
+private struct CaptureInvitePage: View {
+    let onRecord: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            Text("START HERE")
+                .font(.caption.weight(.semibold))
+                .tracking(1.8)
+                .foregroundStyle(CloakTheme.stageInk.opacity(0.64))
+
+            Text("A capture of you,\nonce.")
+                .font(.system(size: 30, weight: .regular, design: .serif))
+                .foregroundStyle(CloakTheme.stageInk)
+                .lineSpacing(2)
+
+            Text("One guided capture and every look in this feed is generated on you. Stored with your profile, deletable anytime.")
+                .font(.subheadline)
+                .foregroundStyle(CloakTheme.stageInk.opacity(0.64))
+                .frame(maxWidth: 270, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Add my capture", action: onRecord)
+                .buttonStyle(StageFilledButtonStyle(fillsWidth: false))
+
+            Button("Not now", action: onDismiss)
+                .font(.subheadline)
+                .foregroundStyle(CloakTheme.stageInk.opacity(0.64))
+                .frame(height: 44)
+        }
+        .padding(.horizontal, 34)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(CloakTheme.stage)
+    }
+}
+
+// MARK: - Chrome
+
+private struct FeedToolbar: View {
+    let label: String
+    let onAdd: () -> Void
+
+    var body: some View {
+        HStack {
+            Text("CLOAK")
+                .font(.subheadline.weight(.bold))
+                .tracking(3)
+                .foregroundStyle(CloakTheme.stageInk)
+                .accessibilityAddTraits(.isHeader)
+
+            Spacer()
+
+            Text(label)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(CloakTheme.stageInk.opacity(0.64))
+
+            Spacer()
+
+            Button(action: onAdd) {
+                Image(systemName: "plus")
+                    .font(.system(size: 21, weight: .light))
+                    .foregroundStyle(CloakTheme.stageInk)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Add to Cloak")
+        }
+        .padding(.horizontal, 18)
+        .frame(height: 44)
+    }
+}
+
+private struct UndoToast: View {
+    let text: String
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(CloakTheme.stageInk)
+            Spacer()
+            Button("Undo", action: onUndo)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(CloakTheme.stageEvidence)
+                .frame(height: 44)
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .frame(height: 48)
+        .cloakStageGlass(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+// MARK: - Button styles
+
+private struct StageOutlineButtonStyle: ButtonStyle {
+    var isConfirmed = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(CloakTheme.stageInk)
+            .frame(maxWidth: .infinity)
+            .frame(height: 46)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(background(pressed: configuration.isPressed))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(CloakTheme.stageInk.opacity(0.22))
+            )
+    }
+
+    private func background(pressed: Bool) -> Color {
+        if isConfirmed { return CloakTheme.stageOwned.opacity(0.22) }
+        return pressed ? CloakTheme.stageInk.opacity(0.12) : .clear
+    }
+}
+
+private struct StageFilledButtonStyle: ButtonStyle {
+    var fillsWidth = true
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, fillsWidth ? 0 : 24)
+            .frame(maxWidth: fillsWidth ? .infinity : nil)
+            .frame(height: fillsWidth ? 46 : 50)
+            .background(
+                RoundedRectangle(cornerRadius: fillsWidth ? 12 : 14, style: .continuous)
+                    .fill(configuration.isPressed
+                          ? CloakTheme.stageAction.opacity(0.85)
+                          : CloakTheme.stageAction)
+            )
+    }
+}
+
+// MARK: - Shared
 
 struct GarmentImageView: View {
     let garment: Garment
@@ -360,26 +641,6 @@ struct ImportPanel<UploadPicker: View>: View {
     }
 }
 
-struct TopChrome: View {
-    var body: some View {
-        HStack(spacing: 10) {
-            CloakWordmark()
-            Spacer()
-            Text("FOR YOU")
-                .font(.caption2.weight(.bold))
-                .tracking(1.2)
-                .padding(.horizontal, 10)
-                .frame(height: 32)
-                .background(CloakTheme.ink.opacity(0.34))
-                .overlay(Rectangle().stroke(CloakTheme.surface.opacity(0.2)))
-        }
-        .foregroundStyle(CloakTheme.surface)
-        .padding(.horizontal, 18)
-        .padding(.top, 10)
-        .shadow(color: CloakTheme.ink.opacity(0.4), radius: 8, y: 2)
-    }
-}
-
 struct EmptyFeedView: View {
     let onImport: () -> Void
 
@@ -389,27 +650,24 @@ struct EmptyFeedView: View {
             Text("YOUR PRIVATE FITTING ROOM")
                 .font(.caption2.weight(.bold))
                 .tracking(1.3)
-                .foregroundStyle(CloakTheme.action)
+                .foregroundStyle(CloakTheme.stageAction)
             Text("Share a piece.\nSee it on you.")
-                .font(.system(size: 42, weight: .medium, design: .serif))
-                .foregroundStyle(CloakTheme.ink)
+                .font(.system(size: 38, weight: .regular, design: .serif))
+                .foregroundStyle(CloakTheme.stageInk)
                 .padding(.top, 9)
             Text("Paste a retailer link or upload a garment image to start your first look.")
                 .font(.body)
-                .foregroundStyle(CloakTheme.muted)
+                .foregroundStyle(CloakTheme.stageInk.opacity(0.64))
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 14)
-            Button(action: onImport) {
-                Label("Import a piece", systemImage: "link.badge.plus")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(CloakPrimaryButtonStyle())
-            .padding(.top, 26)
+            Button("Import a piece", action: onImport)
+                .buttonStyle(StageFilledButtonStyle(fillsWidth: false))
+                .padding(.top, 26)
             Spacer()
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 72)
-        .background(CloakTheme.canvas)
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(CloakTheme.stage)
     }
 }
 
