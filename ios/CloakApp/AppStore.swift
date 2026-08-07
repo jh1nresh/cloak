@@ -24,6 +24,8 @@ final class AppStore: ObservableObject {
     @Published private(set) var tasteSummary = TasteSummary()
     @Published private var wardrobeEvidenceByGarmentID: [UUID: WardrobeEvidence] = [:]
     @Published var toast: FeedToast?
+    /// Which endpoint the in-flight job should be polled against.
+    @Published private(set) var activeLookIsMotion = false
 
     private let api: APIClient
     private let profileKey = "cloak.fitProfile"
@@ -118,6 +120,39 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Records the one-time body capture. Every motion look is generated
+    /// against it, so this replaces any previously stored capture.
+    func uploadBodyVideo(from item: PhotosPickerItem) async {
+        guard let profile else {
+            errorMessage = "Create your profile first."
+            return
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                throw APIClientError.missingResult
+            }
+            let contentType = item.supportedContentTypes.first?.preferredMIMEType ?? "video/mp4"
+            let response = try await api.uploadBodyVideo(
+                userId: profile.userId,
+                videoData: data,
+                contentType: contentType
+            )
+            self.profile = FitProfile(
+                userId: profile.userId,
+                avatarUrl: profile.avatarUrl,
+                bodyVideoUrl: response.bodyVideoUrl,
+                bodyVideoPosterUrl: response.posterUrl
+            )
+            saveProfile()
+        } catch {
+            errorMessage = readable(error)
+        }
+    }
+
     func tryOn(_ garment: Garment) async {
         guard let profile else {
             errorMessage = "Upload a fit photo first."
@@ -128,9 +163,39 @@ final class AppStore: ObservableObject {
         defer { isLoading = false }
 
         do {
+            // Motion needs a body capture and a garment the server can fetch;
+            // a camera-roll upload has no public URL, so it stays on stills.
+            if hasBodyCapture && !garment.isLocal {
+                let lookId = try await api.createMotionLook(
+                    userId: profile.userId,
+                    garment: garment
+                )
+                activeGarment = garment
+                activeLookIsMotion = true
+                activeTryOn = TryOn(
+                    id: lookId,
+                    status: .processing,
+                    resultUrl: nil,
+                    videoUrl: nil,
+                    errorMessage: nil
+                )
+                return
+            }
+
             let id = try await api.submitTryOn(profile: profile, garment: garment)
             activeGarment = garment
+            activeLookIsMotion = false
             activeTryOn = TryOn(id: id, status: .processing, resultUrl: nil, videoUrl: nil, errorMessage: nil)
+        } catch APIClientError.bodyVideoMissing {
+            // Server and client disagreed about the capture; trust the server.
+            self.profile = FitProfile(
+                userId: profile.userId,
+                avatarUrl: profile.avatarUrl,
+                bodyVideoUrl: nil,
+                bodyVideoPosterUrl: nil
+            )
+            saveProfile()
+            selectedTab = .profile
         } catch {
             errorMessage = readable(error)
         }
@@ -142,7 +207,9 @@ final class AppStore: ObservableObject {
         }
 
         do {
-            let refreshed = try await api.fetchTryOn(id: activeTryOn.id)
+            let refreshed = activeLookIsMotion
+                ? try await api.fetchLook(id: activeTryOn.id).asTryOn
+                : try await api.fetchTryOn(id: activeTryOn.id)
             self.activeTryOn = refreshed
             archiveCompletedLook(refreshed)
         } catch {
@@ -213,7 +280,7 @@ final class AppStore: ObservableObject {
 
     /// A stored capture of the user is what every look is generated against.
     var hasBodyCapture: Bool {
-        profile != nil
+        profile?.bodyVideoUrl != nil
     }
 
     /// One page per garment, carrying whatever result currently exists for it.
