@@ -68,8 +68,8 @@ struct ClosetView: View {
                 ClosetEmptyState(
                     systemImage: "bookmark",
                     title: "Nothing saved yet",
-                    message: "Keep a piece from Discover and it will stay here.",
-                    actionTitle: "Browse Discover"
+                    message: "Keep a piece from Today and it will stay here.",
+                    actionTitle: "Browse Today"
                 ) {
                     store.selectedTab = .discover
                 }

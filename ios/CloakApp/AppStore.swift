@@ -17,9 +17,13 @@ final class AppStore: ObservableObject {
     @Published var isImportPresented = false
     @Published var isTabBarHidden = false
     @Published private(set) var savedGarmentKeys: Set<String> = []
+    /// Ownership is only ever set from confirmed evidence. A buy click is
+    /// interest, not ownership, so nothing writes to this from the feed.
+    @Published private(set) var ownedGarmentKeys: Set<String> = []
     @Published private(set) var completedLooks: [CompletedLook] = []
     @Published private(set) var tasteSummary = TasteSummary()
     @Published private var wardrobeEvidenceByGarmentID: [UUID: WardrobeEvidence] = [:]
+    @Published var toast: FeedToast?
 
     private let api: APIClient
     private let profileKey = "cloak.fitProfile"
@@ -126,7 +130,7 @@ final class AppStore: ObservableObject {
         do {
             let id = try await api.submitTryOn(profile: profile, garment: garment)
             activeGarment = garment
-            activeTryOn = TryOn(id: id, status: .processing, resultUrl: nil, errorMessage: nil)
+            activeTryOn = TryOn(id: id, status: .processing, resultUrl: nil, videoUrl: nil, errorMessage: nil)
         } catch {
             errorMessage = readable(error)
         }
@@ -182,6 +186,16 @@ final class AppStore: ObservableObject {
         activeGarment = nil
     }
 
+    /// Move a finished look into the library and free the in-flight slot, so a
+    /// completed result survives even if it never arrived through a poll.
+    func finalizeActiveLookIfComplete() {
+        guard let activeTryOn, activeTryOn.status == .completed else {
+            return
+        }
+        archiveCompletedLook(activeTryOn)
+        closeResult()
+    }
+
     func wardrobeEvidence(for garment: Garment?) -> WardrobeEvidence? {
         guard let id = garment?.id else {
             return nil
@@ -191,6 +205,70 @@ final class AppStore: ObservableObject {
 
     func isSaved(_ garment: Garment) -> Bool {
         savedGarmentKeys.contains(garment.libraryKey)
+    }
+
+    func isOwned(_ garment: Garment) -> Bool {
+        ownedGarmentKeys.contains(garment.libraryKey)
+    }
+
+    /// A stored capture of the user is what every look is generated against.
+    var hasBodyCapture: Bool {
+        profile != nil
+    }
+
+    /// One page per garment, carrying whatever result currently exists for it.
+    var feedLooks: [FeedLook] {
+        garments.map { garment in
+            let key = garment.libraryKey
+            let completed = completedLooks.first { $0.garmentKey == key }
+            let inFlight = activeGarment?.libraryKey == key ? activeTryOn : nil
+
+            let status: LookStatus
+            if completed != nil {
+                status = .completed
+            } else if let inFlight {
+                switch inFlight.status {
+                case .queued: status = .queued
+                case .processing: status = .processing
+                case .finalizing: status = .finalizing
+                case .completed: status = .completed
+                case .failed: status = .failed
+                }
+            } else {
+                status = .notStarted
+            }
+
+            return FeedLook(
+                id: key,
+                garment: garment,
+                status: status,
+                videoUrl: completed?.videoUrl ?? inFlight?.videoUrl,
+                resultUrl: completed?.resultUrl ?? inFlight?.resultUrl,
+                isOwned: isOwned(garment),
+                isSaved: isSaved(garment),
+                evidence: wardrobeEvidence(for: garment)
+            )
+        }
+    }
+
+    /// Save with an undo window, per the feed's double-tap gesture.
+    func saveWithUndo(_ garment: Garment) async {
+        let wasSaved = isSaved(garment)
+        await save(garment)
+        guard !wasSaved else { return }
+        toast = FeedToast(text: "Saved to your shortlist", garmentKey: garment.libraryKey)
+    }
+
+    func undoSave() {
+        guard let key = toast?.garmentKey else { return }
+        savedGarmentKeys.remove(key)
+        tasteSummary.saves = max(0, tasteSummary.saves - 1)
+        saveLibraryState()
+        toast = nil
+    }
+
+    func dismissToast() {
+        toast = nil
     }
 
     var savedGarments: [Garment] {
@@ -264,6 +342,7 @@ final class AppStore: ObservableObject {
             CompletedLook(
                 id: tryOn.id,
                 resultUrl: resultUrl,
+                videoUrl: tryOn.videoUrl,
                 garmentKey: garment?.libraryKey,
                 sourceImageUrl: garment?.imageUrl,
                 title: garment?.title ?? "Try-on look",
@@ -360,6 +439,7 @@ final class AppStore: ObservableObject {
                 id: UUID(uuidString: "43B281A9-3BD8-4B90-9E0C-608363F7C4B9")!,
                 status: .completed,
                 resultUrl: resultURL,
+                videoUrl: nil,
                 errorMessage: nil
             )
         }

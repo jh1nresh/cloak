@@ -1,6 +1,51 @@
 import SwiftUI
 
+extension Color {
+    init(rgb: UInt32) {
+        self.init(
+            red: Double((rgb >> 16) & 0xFF) / 255,
+            green: Double((rgb >> 8) & 0xFF) / 255,
+            blue: Double(rgb & 0xFF) / 255
+        )
+    }
+}
+
 enum CloakTheme {
+    /// Motion feed surface. Warm near-black — never pure black.
+    static let stage = Color(rgb: 0x161114)
+    static let stageInk = Color(rgb: 0xF5EFF0)
+    static let stageAction = Color(rgb: 0xD65B48)
+    static let stageOwned = Color(rgb: 0x9DB894)
+    static let stageEvidence = Color(rgb: 0x93B0D3)
+
+    /// Editorial-light surface for Closet, Me, and sheets.
+    static let paper = Color(rgb: 0xFAF6F4)
+    static let paperInk = Color(rgb: 0x1E1719)
+    static let paperAction = Color(rgb: 0xB74637)
+    static let paperOwned = Color(rgb: 0x586B52)
+    static let paperEvidence = Color(rgb: 0x46658D)
+
+    /// Sized to the dead zones at top and bottom — never across the garment.
+    static let stageScrimTop = LinearGradient(
+        stops: [
+            .init(color: stage.opacity(0.55), location: 0),
+            .init(color: stage.opacity(0.28), location: 0.55),
+            .init(color: stage.opacity(0), location: 1),
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+
+    static let stageScrimBottom = LinearGradient(
+        stops: [
+            .init(color: stage.opacity(0), location: 0),
+            .init(color: stage.opacity(0.38), location: 0.42),
+            .init(color: stage.opacity(0.72), location: 1),
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+
     static let ink = Color(red: 48 / 255, green: 38 / 255, blue: 42 / 255)
     static let canvas = Color(red: 251 / 255, green: 239 / 255, blue: 237 / 255)
     static let surface = Color(red: 255 / 255, green: 249 / 255, blue: 246 / 255)
@@ -238,5 +283,117 @@ struct CloakComparisonControl: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// The one glass recipe used across the motion feed. Reduce Transparency
+/// swaps blur for an opaque stage fill with a visible border.
+struct CloakStageGlass<S: Shape>: View {
+    let shape: S
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        ZStack {
+            if reduceTransparency {
+                shape.fill(CloakTheme.stage)
+                shape.stroke(CloakTheme.stageInk.opacity(0.64), lineWidth: 1)
+            } else {
+                shape.fill(.ultraThinMaterial)
+                shape.fill(Color(rgb: 0x787880).opacity(0.30))
+                shape.stroke(Color.white.opacity(0.16), lineWidth: 0.5)
+            }
+        }
+    }
+}
+
+extension View {
+    func cloakStageGlass<S: Shape>(_ shape: S) -> some View {
+        background(CloakStageGlass(shape: shape))
+    }
+}
+
+/// Status chip for GENERATING / COULDN'T GENERATE. The indeterminate bar only
+/// appears while a look is actually being generated.
+struct CloakStatusChip: View {
+    let label: String
+    var isGenerating = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var slide = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .tracking(1.1)
+                .foregroundStyle(CloakTheme.stageInk.opacity(0.64))
+
+            if isGenerating {
+                Capsule()
+                    .fill(CloakTheme.stageInk.opacity(0.18))
+                    .frame(width: 184, height: 2)
+                    .overlay(alignment: .leading) {
+                        Capsule()
+                            .fill(CloakTheme.stageInk.opacity(0.7))
+                            .frame(width: 44, height: 2)
+                            .offset(x: slide ? 184 : -44)
+                    }
+                    .clipShape(Capsule())
+                    .onAppear {
+                        guard !reduceMotion else { return }
+                        withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                            slide = true
+                        }
+                    }
+            }
+        }
+        .padding(.horizontal, 17)
+        .padding(.vertical, 13)
+        .cloakStageGlass(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Original / Me. `Me` stays disabled until a completed look exists, so the
+/// control never implies a result the user does not have.
+struct CloakStageSegment: View {
+    @Binding var showsMe: Bool
+    let isMeEnabled: Bool
+
+    var body: some View {
+        HStack(spacing: 0) {
+            segment("Original", selected: !showsMe, enabled: true) { showsMe = false }
+            segment("Me", selected: showsMe, enabled: isMeEnabled) { showsMe = true }
+        }
+        .padding(4)
+        .frame(height: 44)
+        .cloakStageGlass(Capsule())
+    }
+
+    private func segment(
+        _ title: String,
+        selected: Bool,
+        enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 15)
+                .frame(height: 36)
+                .foregroundStyle(foreground(selected: selected, enabled: enabled))
+                .background {
+                    if selected {
+                        Capsule().fill(CloakTheme.stageInk.opacity(0.92))
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func foreground(selected: Bool, enabled: Bool) -> Color {
+        guard enabled else { return CloakTheme.stageInk.opacity(0.32) }
+        return selected ? CloakTheme.stage : CloakTheme.stageInk.opacity(0.72)
     }
 }
