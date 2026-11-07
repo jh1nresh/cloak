@@ -1,8 +1,8 @@
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const net = require('node:net');
-const tls = require('node:tls');
-const dns = require('node:dns').promises;
+const assert = process.getBuiltinModule('node:assert/strict');
+const fs = process.getBuiltinModule('node:fs');
+const net = process.getBuiltinModule('node:net');
+const tls = process.getBuiltinModule('node:tls');
+const dns = process.getBuiltinModule('node:dns').promises;
 assert.equal(process.getuid(), 1000);
 for (const path of ['/source', '/var/run/docker.sock', '/work/.git']) {
   assert.equal(fs.existsSync(path), false, `Private host/history mount forbidden: ${path}`);
