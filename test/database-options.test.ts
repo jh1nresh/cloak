@@ -33,7 +33,7 @@ it.each([
   expect(options.connectionString).not.toContain("sslmode");
   expect(options.connectionString).not.toContain("DUMMY");
   const ssl = options.ssl;
-  if (!ssl) throw new Error("Expected verified TLS");
+  if (typeof ssl !== "object") throw new Error("Expected verified TLS options");
   expect(ssl.rejectUnauthorized).toBe(true);
   expect(ssl.checkServerIdentity("irrelevant-transport-name", certificate(expectedHost))).toBeUndefined();
   expect(ssl.checkServerIdentity("irrelevant-transport-name", certificate("wrong.invalid"))).toBeInstanceOf(Error);
