@@ -22,6 +22,13 @@ describe("security helpers", () => {
     );
   });
 
+  it("rejects private IPv6 and both mapped IPv4 representations", async () => {
+    for (const host of ["[::1]", "[fc00::1]", "[::ffff:127.0.0.1]", "[::ffff:7f00:1]", "[::ffff:a00:1]"]) {
+      await expect(assertPublicHttpUrl(`http://${host}/dummy`)).rejects.toThrow(InputValidationError);
+    }
+    await expect(assertPublicHttpUrl("https://[2001:4860:4860::8888]/dummy")).resolves.toBeInstanceOf(URL);
+  });
+
   it("rejects unsupported URL protocols and credentials", async () => {
     await expect(assertPublicHttpUrl("file:///etc/passwd")).rejects.toThrow(
       InputValidationError

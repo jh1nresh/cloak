@@ -1,3 +1,5 @@
+import { publicResultStatus } from "@/lib/public-status";
+import type { Look } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { uploadVideo } from "@/lib/cloudinary";
 import { getLookById, lockLookForFinalizing, updateLook } from "@/lib/db";
@@ -105,8 +107,8 @@ export async function GET(
   }
 }
 
-function noStoreJson(data: unknown, init?: ResponseInit) {
-  return NextResponse.json(data, {
+function noStoreJson(data: Look, init?: ResponseInit) {
+  return NextResponse.json(publicResultStatus(data), {
     ...init,
     headers: { ...init?.headers, "Cache-Control": "no-store" },
   });

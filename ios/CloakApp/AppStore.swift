@@ -32,6 +32,8 @@ final class AppStore: ObservableObject {
     private let savedGarmentsKey = "cloak.savedGarments"
     private let completedLooksKey = "cloak.completedLooks"
     private let tasteSummaryKey = "cloak.tasteSummary"
+    /// Async work belongs to the profile state in which it started.
+    private var profileGeneration = UUID()
 
     init(api: APIClient = APIClient()) {
         self.api = api
@@ -50,48 +52,65 @@ final class AppStore: ObservableObject {
             return
         }
 
+        let generation = profileGeneration
         isLoading = true
-        defer { isLoading = false }
+        defer { if generation == profileGeneration { isLoading = false } }
 
         do {
-            garments = try await api.fetchGarments()
+            let fetched = try await api.fetchGarments()
+            guard generation == profileGeneration else { return }
+            garments = fetched
         } catch {
+            guard generation == profileGeneration else { return }
             errorMessage = readable(error)
         }
     }
 
     func createProfile(from item: PhotosPickerItem) async {
+        let generation = profileGeneration
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
                 throw APIClientError.missingResult
             }
+            guard generation == profileGeneration else { return }
             let contentType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
 
             isLoading = true
-            defer { isLoading = false }
+            defer { if generation == profileGeneration { isLoading = false } }
 
             let wasReplacingProfile = profile != nil
-            profile = try await api.createAvatar(imageData: data, contentType: contentType)
+            let newProfile = try await api.createAvatar(imageData: data, contentType: contentType)
+            guard generation == profileGeneration else { return }
             if wasReplacingProfile {
                 clearLibraryState()
+            } else {
+                // Keep a garment shared before first onboarding, but retire
+                // pending work that started before this profile existed.
+                profileGeneration = UUID()
             }
+            profile = newProfile
+            isLoading = false
             saveProfile()
         } catch {
+            guard generation == profileGeneration else { return }
             errorMessage = readable(error)
         }
     }
 
     func addLocalGarment(from item: PhotosPickerItem) async {
+        let generation = profileGeneration
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
                 throw APIClientError.missingResult
             }
+            guard generation == profileGeneration else { return }
             let contentType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
             let garment = Garment.localImage(data: data, contentType: contentType)
             garments.insert(garment, at: 0)
             savedGarmentKeys.insert(garment.libraryKey)
             saveLibraryState()
         } catch {
+            guard generation == profileGeneration else { return }
             errorMessage = readable(error)
         }
     }
@@ -105,17 +124,20 @@ final class AppStore: ObservableObject {
     }
 
     func importGarment(from urlString: String) async {
+        let generation = profileGeneration
         isLoading = true
-        defer { isLoading = false }
+        defer { if generation == profileGeneration { isLoading = false } }
 
         do {
             let garment = try await api.importGarment(from: urlString, userId: profile?.userId)
+            guard generation == profileGeneration else { return }
             garments.removeAll { $0.id == garment.id || $0.sourceUrl == garment.sourceUrl }
             garments.insert(garment, at: 0)
             savedGarmentKeys.insert(garment.libraryKey)
             saveLibraryState()
             importURLText = ""
         } catch {
+            guard generation == profileGeneration else { return }
             errorMessage = readable(error)
         }
     }
@@ -128,19 +150,22 @@ final class AppStore: ObservableObject {
             return
         }
 
+        let generation = profileGeneration
         isLoading = true
-        defer { isLoading = false }
+        defer { if generation == profileGeneration { isLoading = false } }
 
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
                 throw APIClientError.missingResult
             }
+            guard generation == profileGeneration else { return }
             let contentType = item.supportedContentTypes.first?.preferredMIMEType ?? "video/mp4"
             let response = try await api.uploadBodyVideo(
                 userId: profile.userId,
                 videoData: data,
                 contentType: contentType
             )
+            guard generation == profileGeneration else { return }
             self.profile = FitProfile(
                 userId: profile.userId,
                 avatarUrl: profile.avatarUrl,
@@ -149,6 +174,7 @@ final class AppStore: ObservableObject {
             )
             saveProfile()
         } catch {
+            guard generation == profileGeneration else { return }
             errorMessage = readable(error)
         }
     }
@@ -159,8 +185,9 @@ final class AppStore: ObservableObject {
             return
         }
 
+        let generation = profileGeneration
         isLoading = true
-        defer { isLoading = false }
+        defer { if generation == profileGeneration { isLoading = false } }
 
         do {
             // Motion needs a body capture and a garment the server can fetch;
@@ -170,6 +197,7 @@ final class AppStore: ObservableObject {
                     userId: profile.userId,
                     garment: garment
                 )
+                guard generation == profileGeneration else { return }
                 activeGarment = garment
                 activeLookIsMotion = true
                 activeTryOn = TryOn(
@@ -183,10 +211,12 @@ final class AppStore: ObservableObject {
             }
 
             let id = try await api.submitTryOn(profile: profile, garment: garment)
+            guard generation == profileGeneration else { return }
             activeGarment = garment
             activeLookIsMotion = false
             activeTryOn = TryOn(id: id, status: .processing, resultUrl: nil, videoUrl: nil, errorMessage: nil)
         } catch APIClientError.bodyVideoMissing {
+            guard generation == profileGeneration else { return }
             // Server and client disagreed about the capture; trust the server.
             self.profile = FitProfile(
                 userId: profile.userId,
@@ -197,6 +227,7 @@ final class AppStore: ObservableObject {
             saveProfile()
             selectedTab = .profile
         } catch {
+            guard generation == profileGeneration else { return }
             errorMessage = readable(error)
         }
     }
@@ -206,13 +237,18 @@ final class AppStore: ObservableObject {
             return
         }
 
+        let generation = profileGeneration
         do {
             let refreshed = activeLookIsMotion
                 ? try await api.fetchLook(id: activeTryOn.id).asTryOn
                 : try await api.fetchTryOn(id: activeTryOn.id)
+            guard generation == profileGeneration,
+                  self.activeTryOn?.id == activeTryOn.id else { return }
             self.activeTryOn = refreshed
             archiveCompletedLook(refreshed)
         } catch {
+            guard generation == profileGeneration,
+                  self.activeTryOn?.id == activeTryOn.id else { return }
             errorMessage = readable(error)
         }
     }
@@ -232,17 +268,21 @@ final class AppStore: ObservableObject {
     }
 
     func skip(_ garment: Garment) async {
+        let generation = profileGeneration
         savedGarmentKeys.remove(garment.libraryKey)
         tasteSummary.skips += 1
         saveLibraryState()
         await recordTasteEvent("skip", garment: garment, reportFailure: false)
+        guard generation == profileGeneration else { return }
         garments.removeAll { $0 == garment }
     }
 
     func buy(_ garment: Garment) async {
+        let generation = profileGeneration
         tasteSummary.retailerOpens += 1
         saveLibraryState()
         await recordTasteEvent("buy_click", garment: garment, reportFailure: false)
+        guard generation == profileGeneration else { return }
         if let sourceUrl = garment.sourceUrl {
             await UIApplication.shared.open(sourceUrl)
         }
@@ -320,8 +360,10 @@ final class AppStore: ObservableObject {
 
     /// Save with an undo window, per the feed's double-tap gesture.
     func saveWithUndo(_ garment: Garment) async {
+        let generation = profileGeneration
         let wasSaved = isSaved(garment)
         await save(garment)
+        guard generation == profileGeneration else { return }
         guard !wasSaved else { return }
         toast = FeedToast(text: "Saved to your shortlist", garmentKey: garment.libraryKey)
     }
@@ -349,8 +391,6 @@ final class AppStore: ObservableObject {
 
     func resetProfile() {
         profile = nil
-        activeTryOn = nil
-        activeGarment = nil
         selectedTab = .discover
         clearLibraryState()
         UserDefaults.standard.removeObject(forKey: profileKey)
@@ -443,6 +483,18 @@ final class AppStore: ObservableObject {
     }
 
     private func clearLibraryState() {
+        profileGeneration = UUID()
+        garments = []
+        activeTryOn = nil
+        activeGarment = nil
+        activeLookIsMotion = false
+        ownedGarmentKeys = []
+        wardrobeEvidenceByGarmentID = [:]
+        toast = nil
+        importURLText = ""
+        isImportPresented = false
+        isLoading = false
+        errorMessage = nil
         savedGarmentKeys = []
         completedLooks = []
         tasteSummary = TasteSummary()
@@ -522,6 +574,7 @@ final class AppStore: ObservableObject {
             return
         }
 
+        let generation = profileGeneration
         do {
             try await api.recordTasteEvent(
                 userId: profile.userId,
@@ -536,6 +589,7 @@ final class AppStore: ObservableObject {
                 ]
             )
         } catch {
+            guard generation == profileGeneration else { return }
             if reportFailure {
                 errorMessage = readable(error)
             }

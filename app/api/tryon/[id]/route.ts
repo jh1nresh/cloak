@@ -1,3 +1,5 @@
+import { publicResultStatus } from "@/lib/public-status";
+import type { TryOn } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { uploadWithWatermark } from "@/lib/cloudinary";
 import {
@@ -125,8 +127,8 @@ export async function GET(
   }
 }
 
-function noStoreJson(data: unknown, init?: ResponseInit) {
-  return NextResponse.json(data, {
+function noStoreJson(data: TryOn, init?: ResponseInit) {
+  return NextResponse.json(publicResultStatus(data), {
     ...init,
     headers: {
       ...init?.headers,

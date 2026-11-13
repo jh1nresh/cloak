@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { databaseTransportOptions } from "@/lib/database-tls";
 
 export type User = {
   id: string;
@@ -130,8 +131,7 @@ export function getPool() {
 
   if (!globalWithPg.cloakPgPool) {
     globalWithPg.cloakPgPool = new Pool({
-      connectionString,
-      ssl: shouldUseSsl() ? { rejectUnauthorized: false } : undefined,
+      ...databaseTransportOptions(connectionString),
       max: Number(process.env.DATABASE_POOL_MAX || 5),
     });
   }
@@ -713,11 +713,4 @@ export async function checkPersistentRateLimit(input: {
   );
 
   return rows[0] || null;
-}
-
-function shouldUseSsl() {
-  return (
-    process.env.DATABASE_SSL === "true" ||
-    process.env.PGSSLMODE === "require"
-  );
 }

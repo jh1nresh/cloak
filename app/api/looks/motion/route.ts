@@ -11,6 +11,8 @@ import {
 import { checkRequestRateLimit } from "@/lib/rate-limit";
 import {
   fetchPublicUrl,
+  readBytesWithLimit,
+  MAX_BODY_VIDEO_BYTES,
   InputValidationError,
   MAX_GARMENT_DATA_URL_BYTES,
 } from "@/lib/security";
@@ -113,10 +115,16 @@ export async function POST(request: NextRequest) {
 
     // Decart takes both sides as file uploads, so each is pulled server-side.
     // The garment URL is attacker-influenced and goes through the SSRF guard.
-    const [garment, bodyVideo] = await Promise.all([
-      fetchBlob(garmentUrl, MAX_GARMENT_DATA_URL_BYTES, true),
-      fetchBlob(user.body_video_url, 200 * 1024 * 1024, false),
-    ]);
+    const sourceAbort = new AbortController();
+    let garment: Blob, bodyVideo: Blob;
+    try {
+      [garment, bodyVideo] = await Promise.all([
+        fetchBlob(garmentUrl, MAX_GARMENT_DATA_URL_BYTES, true, sourceAbort.signal),
+        fetchBlob(user.body_video_url, MAX_BODY_VIDEO_BYTES, false, sourceAbort.signal),
+      ]);
+    } finally {
+      sourceAbort.abort();
+    }
 
     const lookId = randomUUID();
     const look = await insertMotionLook({
@@ -181,17 +189,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function fetchBlob(url: string, maxBytes: number, guarded: boolean) {
-  const response = guarded ? await fetchPublicUrl(url) : await fetch(url);
+async function fetchBlob(url: string, maxBytes: number, guarded: boolean, sourceSignal: AbortSignal) {
+  const signal = AbortSignal.any([sourceSignal, AbortSignal.timeout(8000)]);
+  const response = guarded ? await fetchPublicUrl(url, { signal }) : await fetch(url, { signal });
 
   if (!response.ok) {
     throw new InputValidationError(`Could not read source asset (${response.status})`);
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-  if (buffer.byteLength > maxBytes) {
-    throw new InputValidationError("Source asset is too large", 413);
-  }
+  const buffer = await readBytesWithLimit(response, maxBytes);
 
   return new Blob([buffer]);
 }

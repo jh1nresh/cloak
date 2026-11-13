@@ -2,7 +2,8 @@
 
 A phone-first vertical feed of 12 pre-generated static try-on images: four distinct
 products each from MUJI USA, MISHOW and Lavahut. Swipe up for the next garment and
-down to return. The feed stops at item 12. The same black-camisole base stays fixed;
+down to return. The feed stops at item 12. The person and bottom product panel stay fixed; only the selected product changes.
+The same black-camisole base stays fixed;
 a masked upper-body layer reveals the selected result after a short dressing pause.
 
 From the repository root, open `/prototypes/wardrobe/index.html` through the existing
