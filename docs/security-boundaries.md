@@ -43,7 +43,14 @@ a separate HTTP/TLS client.
 Clear and successful replacement drop prior garment media, result/library state
 and private in-memory evidence. An epoch invalidates stale asynchronous UI writes;
 it does not cancel already-sent backend/provider work or guarantee secure erasure
-of every temporary copy. Source checks are separate from native runtime/UI proof.
+of every temporary copy. The native XCTest target checks the rendered SwiftUI
+feed after clearing A and
+creating B, successful/failed replacement, delayed garment-import success/error,
+and an avatar response arriving after clear. It uses dummy responses and locally
+generated image markers. A negative control that removes garment clearing makes
+the rendered-feed assertion fail; the production implementation passes. System
+PhotosPicker interaction and real backend/provider cancellation are outside this
+runtime proof.
 
 ## Verification scope
 

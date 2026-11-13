@@ -36,3 +36,30 @@ This app keeps the backend as the source of truth. The iOS app should never talk
 - Result covers processing, failure, original/me comparison, save, share, and retailer handoff.
 
 Saved pieces, completed-look links, and taste totals are persisted on the device. The Owned section remains empty until purchase confirmation is connected; a save or retailer visit never creates ownership. Cloud deletion and personalized recommendation summaries are not implemented in this private-beta slice.
+
+## Build and regression tests
+
+The shared `Cloak` scheme builds the app and Share Extension. With signing disabled,
+compile the complete Release configuration for both simulator architectures:
+
+```sh
+xcodebuild -project ios/Cloak.xcodeproj -scheme Cloak \
+  -configuration Release -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+Run the `CloakTests` target on a dedicated simulator (replace `SIMULATOR_UDID`):
+
+```sh
+xcodebuild -project ios/Cloak.xcodeproj -scheme Cloak \
+  -destination 'platform=iOS Simulator,id=SIMULATOR_UDID' \
+  -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
+```
+
+The four profile-transition tests use generated marker images and an injected
+URLProtocol with dummy responses. They cover clear/re-onboard on the rendered
+SwiftUI feed, replacement success/failure, delayed garment-import success/failure,
+and a delayed avatar response after clearing. They exercise the same profile-data
+submission path as PhotosPicker; they do not automate the system photo picker or
+call real providers. Use a dedicated simulator because the app's local preferences
+are cleared during these tests, and shut down the task-owned simulator afterward.

@@ -16,6 +16,7 @@
 		7CA3B97EDB8FB0B0AF3AAC58 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6B25930D784118621B78A3 /* APIClient.swift */; };
 		8392177402195C49BDEA91BD /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7B56134A663D322B10F6741 /* ProfileView.swift */; };
 		8665965B559003767F4C025E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3FD642A59C5FABDBF76A4781 /* Assets.xcassets */; };
+		9791EE55E32437BE8338DF42 /* ProfilePrivacyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD30184F2BB806BADE7609B8 /* ProfilePrivacyTests.swift */; };
 		A2F548563D38605FA25EC6B7 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADE3E6DD13493287590385CC /* AppStore.swift */; };
 		AA222088F46EAFC753D24539 /* LookDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFA97D3FFFD2AA737087273 /* LookDetailSheet.swift */; };
 		B9DA4B636036B49E3C5EE40D /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75B2B580E918C912E2C1E80F /* ShareViewController.swift */; };
@@ -26,6 +27,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		528719556F312F355BB32716 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0B7DB9BAB386140C5B85233D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 42BEE877DCA9C2886E184BAD;
+			remoteInfo = Cloak;
+		};
 		FEB59876B6975B938B8DAFCE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 0B7DB9BAB386140C5B85233D /* Project object */;
@@ -54,6 +62,7 @@
 		053B3186C4959BC8BD688104 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		0CF3EF81C717CAFBA4E2466B /* CloakApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloakApp.swift; sourceTree = "<group>"; };
 		208EAFBB768D30064021D0D1 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		236B0B3D9DFD45EF8B9A6CC9 /* CloakTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CloakTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F6FE7BC756D1640D4ABF35D /* CloakShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CloakShareExtension.entitlements; sourceTree = "<group>"; };
 		3FAF341FC3ABD8D804F6D82B /* MotionMediaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionMediaView.swift; sourceTree = "<group>"; };
 		3FD642A59C5FABDBF76A4781 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -70,6 +79,7 @@
 		ADE3E6DD13493287590385CC /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		C7B56134A663D322B10F6741 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		C8EF0E0F587C3B79574A36D9 /* AppShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellView.swift; sourceTree = "<group>"; };
+		CD30184F2BB806BADE7609B8 /* ProfilePrivacyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePrivacyTests.swift; sourceTree = "<group>"; };
 		E4C610E2E646AF14D9F68AB5 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -102,6 +112,7 @@
 			children = (
 				0B9BB4C0A065F88F874DE08F /* CloakApp */,
 				A3C2388006386E04FB013CA7 /* CloakShareExtension */,
+				CA1A0A544B0D4F81F10C4C1F /* CloakTests */,
 				E535479A4E2FB2FF251E1479 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -116,11 +127,20 @@
 			path = CloakShareExtension;
 			sourceTree = "<group>";
 		};
+		CA1A0A544B0D4F81F10C4C1F /* CloakTests */ = {
+			isa = PBXGroup;
+			children = (
+				CD30184F2BB806BADE7609B8 /* ProfilePrivacyTests.swift */,
+			);
+			path = CloakTests;
+			sourceTree = "<group>";
+		};
 		E535479A4E2FB2FF251E1479 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				00476423CB3358CE16755A0D /* Cloak.app */,
 				7024405E5D60B77862E5747E /* CloakShareExtension.appex */,
+				236B0B3D9DFD45EF8B9A6CC9 /* CloakTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -128,6 +148,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		025A4EB989E0FD11B098F633 /* CloakTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 63307E114157E088E0E67153 /* Build configuration list for PBXNativeTarget "CloakTests" */;
+			buildPhases = (
+				1E422A7BA7A714859DDFA667 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8D73032B966686EE9776CA32 /* PBXTargetDependency */,
+			);
+			name = CloakTests;
+			packageProductDependencies = (
+			);
+			productName = CloakTests;
+			productReference = 236B0B3D9DFD45EF8B9A6CC9 /* CloakTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		42BEE877DCA9C2886E184BAD /* Cloak */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 76EBE0DC05BBC2D6954031D3 /* Build configuration list for PBXNativeTarget "Cloak" */;
@@ -174,6 +212,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					025A4EB989E0FD11B098F633 = {
+						DevelopmentTeam = "";
+					};
 					42BEE877DCA9C2886E184BAD = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
@@ -200,6 +241,7 @@
 			targets = (
 				42BEE877DCA9C2886E184BAD /* Cloak */,
 				CB69D43FF6D10A231E1F5573 /* CloakShareExtension */,
+				025A4EB989E0FD11B098F633 /* CloakTests */,
 			);
 		};
 /* End PBXProject section */
@@ -216,6 +258,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		1E422A7BA7A714859DDFA667 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9791EE55E32437BE8338DF42 /* ProfilePrivacyTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AECA57552104A8E89DA96217 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -247,6 +297,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		8D73032B966686EE9776CA32 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 42BEE877DCA9C2886E184BAD /* Cloak */;
+			targetProxy = 528719556F312F355BB32716 /* PBXContainerItemProxy */;
+		};
 		B7138E37A4EE0718074C6B9D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = CB69D43FF6D10A231E1F5573 /* CloakShareExtension */;
@@ -272,6 +327,23 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
+		};
+		8C97674BCBF1C6D00AAC1A4E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.cloak.mobile.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cloak.app/Cloak";
+			};
+			name = Release;
 		};
 		A2234BE1F2802BA017FAEC0D /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -450,6 +522,23 @@
 			};
 			name = Release;
 		};
+		E8CDA45AEBD6829B4BD0FB58 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.cloak.mobile.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cloak.app/Cloak";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -458,6 +547,15 @@
 			buildConfigurations = (
 				DDEDB01343DF27A2F43176C1 /* Debug */,
 				A2234BE1F2802BA017FAEC0D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		63307E114157E088E0E67153 /* Build configuration list for PBXNativeTarget "CloakTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E8CDA45AEBD6829B4BD0FB58 /* Debug */,
+				8C97674BCBF1C6D00AAC1A4E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

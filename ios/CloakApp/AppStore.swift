@@ -75,11 +75,20 @@ final class AppStore: ObservableObject {
             guard generation == profileGeneration else { return }
             let contentType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
 
-            isLoading = true
-            defer { if generation == profileGeneration { isLoading = false } }
+            await createProfile(imageData: data, contentType: contentType)
+        } catch {
+            guard generation == profileGeneration else { return }
+            errorMessage = readable(error)
+        }
+    }
 
+    func createProfile(imageData: Data, contentType: String) async {
+        let generation = profileGeneration
+        isLoading = true
+        defer { if generation == profileGeneration { isLoading = false } }
+        do {
             let wasReplacingProfile = profile != nil
-            let newProfile = try await api.createAvatar(imageData: data, contentType: contentType)
+            let newProfile = try await api.createAvatar(imageData: imageData, contentType: contentType)
             guard generation == profileGeneration else { return }
             if wasReplacingProfile {
                 clearLibraryState()

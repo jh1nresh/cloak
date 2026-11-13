@@ -38,3 +38,23 @@ targets:
         CODE_SIGN_ENTITLEMENTS: CloakShareExtension/CloakShareExtension.entitlements
         CODE_SIGN_STYLE: Automatic
     dependencies: []
+
+  CloakTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: CloakTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.cloak.mobile.tests
+    dependencies:
+      - target: Cloak
+schemes:
+  Cloak:
+    build:
+      targets:
+        Cloak: all
+    test:
+      targets:
+        - CloakTests
