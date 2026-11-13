@@ -1,0 +1,330 @@
+{
+  "source": "Shopify Global Catalog public product snapshot, 2026-11-13",
+  "count": 12,
+  "items": [
+    {
+      "id": "gid://shopify/p/2AIADVQdExmpbg4nX8VTj9",
+      "variant_id": "gid://shopify/ProductVariant/45273455558846",
+      "title": "Cotton Voile Blouse",
+      "store": "MUJI USA",
+      "store_id": "gid://shopify/Shop/55680663742",
+      "source_url": "https://www.muji.us/products/cotton-voile-blouse-bc2o725a?variant=45273455558846",
+      "image_url": "https://cdn.shopify.com/s/files/1/0556/8066/3742/files/4550584989247_06_org.jpg",
+      "price": {
+        "amount": 4199,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Off White"
+        },
+        {
+          "name": "Size",
+          "label": "XS"
+        }
+      ],
+      "name": "棉質薄紗襯衫",
+      "legacy": true,
+      "result": "wardrobe-assets/look-0.webp",
+      "garment": "wardrobe-assets/garment-0.jpg"
+    },
+    {
+      "id": "gid://shopify/p/3ESZ1VkBGrUcnP73X62c9Y",
+      "variant_id": "gid://shopify/ProductVariant/49142346318105",
+      "title": "100% Cotton Blouse for Women",
+      "store": "MISHOW",
+      "store_id": "gid://shopify/Shop/87016276249",
+      "source_url": "https://mishowstore.com/products/mxd30x1635?variant=49142346318105",
+      "image_url": "https://cdn.shopify.com/s/files/1/0870/1627/6249/files/SKU_bec5cbb1-d2a5-43fa-aaf1-2bf020a8a3c4-423383.png",
+      "price": {
+        "amount": 5400,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Apricot"
+        },
+        {
+          "name": "Size",
+          "label": "S"
+        }
+      ],
+      "name": "刺繡綁帶上衣",
+      "legacy": true,
+      "result": "wardrobe-assets/look-1.webp",
+      "garment": "wardrobe-assets/garment-1.jpg"
+    },
+    {
+      "id": "gid://shopify/p/272jupupuaWurp1400WfIB",
+      "variant_id": "gid://shopify/ProductVariant/39561570549854",
+      "title": "Haven Blue Women's Hawaiian Cotton Shirt",
+      "store": "Lavahut",
+      "store_id": "gid://shopify/Shop/8141421",
+      "source_url": "https://lavahut.com/products/haven-blue-ladys-hawaiian-cotton-blouse?variant=39561570549854",
+      "image_url": "https://cdn.shopify.com/s/files/1/0814/1421/files/haven-blue-womens-hawaiian-cotton-shirt-s-blouses-lavahut-454.webp",
+      "price": {
+        "amount": 5500,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Blue"
+        },
+        {
+          "name": "Size",
+          "label": "S"
+        }
+      ],
+      "name": "藍色夏威夷襯衫",
+      "legacy": true,
+      "result": "wardrobe-assets/look-2.webp",
+      "garment": "wardrobe-assets/garment-2.jpg"
+    },
+    {
+      "id": "gid://shopify/p/2WCw9KA0JWsoihrOTDMfgd",
+      "variant_id": "gid://shopify/ProductVariant/46013433675966",
+      "title": "Linen 3/4 Sleeve Blouse",
+      "store": "MUJI USA",
+      "store_id": "gid://shopify/Shop/55680663742",
+      "source_url": "https://www.muji.us/products/linen-3-4-sleeve-blouse-bc2pw26s?variant=46013433675966",
+      "image_url": "https://cdn.shopify.com/s/files/1/0556/8066/3742/files/4550723003582_06_org.jpg",
+      "price": {
+        "amount": 6490,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Dark Orange Stripe"
+        },
+        {
+          "name": "Size",
+          "label": "XS"
+        }
+      ],
+      "name": "橘色條紋亞麻襯衫",
+      "legacy": false,
+      "result": "wardrobe-assets/look-3.webp",
+      "garment": "wardrobe-assets/garment-3.jpg"
+    },
+    {
+      "id": "gid://shopify/p/3TkgpHriqd9U6zyhEr4Q4O",
+      "variant_id": "gid://shopify/ProductVariant/51929933676825",
+      "title": "Blouses for Women",
+      "store": "MISHOW",
+      "store_id": "gid://shopify/Shop/87016276249",
+      "source_url": "https://mishowstore.com/products/mxf14x2545?variant=51929933676825",
+      "image_url": "https://cdn.shopify.com/s/files/1/0870/1627/6249/files/20250110_0413.png",
+      "price": {
+        "amount": 4556,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Yellow"
+        },
+        {
+          "name": "Size",
+          "label": "S"
+        }
+      ],
+      "name": "黃色荷葉邊上衣",
+      "legacy": false,
+      "result": "wardrobe-assets/look-4.webp",
+      "garment": "wardrobe-assets/garment-4.jpg"
+    },
+    {
+      "id": "gid://shopify/p/5mjaxYH4CviCc1jnj8b2dS",
+      "variant_id": "gid://shopify/ProductVariant/2367413889",
+      "title": "Cloud Women's Hawaiian Rayon Shirt",
+      "store": "Lavahut",
+      "store_id": "gid://shopify/Shop/8141421",
+      "source_url": "https://lavahut.com/products/cloud-ladys-hawaiian-rayon-blouse?variant=2367413889",
+      "image_url": "https://cdn.shopify.com/s/files/1/0814/1421/files/cloud-womens-hawaiian-rayon-shirt-s-cream-blouses-lavahut-310.webp",
+      "price": {
+        "amount": 5500,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Cream"
+        },
+        {
+          "name": "Size",
+          "label": "S"
+        }
+      ],
+      "name": "奶白花卉襯衫",
+      "legacy": false,
+      "result": "wardrobe-assets/look-5.webp",
+      "garment": "wardrobe-assets/garment-5.jpg"
+    },
+    {
+      "id": "gid://shopify/p/24BXn3S0vpuh8rUkISh65x",
+      "variant_id": "gid://shopify/ProductVariant/49209863274686",
+      "title": "Kapok Blend Double Gauze Blouse",
+      "store": "MUJI USA",
+      "store_id": "gid://shopify/Shop/55680663742",
+      "source_url": "https://www.muji.us/products/kapok-blend-double-gauze-blouse-bc2sp26a?variant=49209863274686",
+      "image_url": "https://cdn.shopify.com/s/files/1/0556/8066/3742/files/4550723467650_07_org.jpg",
+      "price": {
+        "amount": 4990,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Navy"
+        },
+        {
+          "name": "Size",
+          "label": "S"
+        }
+      ],
+      "name": "藏青雙層紗襯衫",
+      "legacy": false,
+      "result": "wardrobe-assets/look-6.webp",
+      "garment": "wardrobe-assets/garment-6.jpg"
+    },
+    {
+      "id": "gid://shopify/p/5m6fWwiQQe5Lf3yObbSRSE",
+      "variant_id": "gid://shopify/ProductVariant/52514973843737",
+      "title": "Blouses for Women",
+      "store": "MISHOW",
+      "store_id": "gid://shopify/Shop/87016276249",
+      "source_url": "https://mishowstore.com/products/mxf29x2744?variant=52514973843737",
+      "image_url": "https://cdn.shopify.com/s/files/1/0870/1627/6249/files/20260515_55916.png",
+      "price": {
+        "amount": 4338,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Purple"
+        },
+        {
+          "name": "Size",
+          "label": "S"
+        }
+      ],
+      "name": "淡紫花卉無袖上衣",
+      "legacy": false,
+      "result": "wardrobe-assets/look-7.webp",
+      "garment": "wardrobe-assets/garment-7.jpg"
+    },
+    {
+      "id": "gid://shopify/p/7iTmVegIFwFWFv3v3MxwEV",
+      "variant_id": "gid://shopify/ProductVariant/39561564815454",
+      "title": "Hibiscus Joy Pink Women's Hawaiian Cotton Shirt",
+      "store": "Lavahut",
+      "store_id": "gid://shopify/Shop/8141421",
+      "source_url": "https://lavahut.com/products/hibiscus-joy-peach-ladys-hawaiian-cotton-blouse?variant=39561564815454",
+      "image_url": "https://cdn.shopify.com/s/files/1/0814/1421/files/hibiscus-joy-pink-womens-hawaiian-cotton-shirt-s-blouses-lavahut-955.webp",
+      "price": {
+        "amount": 5500,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Pink"
+        },
+        {
+          "name": "Size",
+          "label": "S"
+        }
+      ],
+      "name": "粉色夏威夷襯衫",
+      "legacy": false,
+      "result": "wardrobe-assets/look-8.webp",
+      "garment": "wardrobe-assets/garment-8.jpg"
+    },
+    {
+      "id": "gid://shopify/p/5HABXorz3pmp2HudjuogiC",
+      "variant_id": "gid://shopify/ProductVariant/45526863904958",
+      "title": "Flannel Shirt",
+      "store": "MUJI USA",
+      "store_id": "gid://shopify/Shop/55680663742",
+      "source_url": "https://www.muji.us/products/flannel-long-sleeve-shirt-bc2oj25a?variant=45526863904958",
+      "image_url": "https://cdn.shopify.com/s/files/1/0556/8066/3742/files/4547315778669_06_org_346ec911-d667-4a5d-98d0-178556ef4dd7.jpg",
+      "price": {
+        "amount": 5990,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Mustard"
+        },
+        {
+          "name": "Size",
+          "label": "XS"
+        }
+      ],
+      "name": "芥黃法蘭絨襯衫",
+      "legacy": false,
+      "result": "wardrobe-assets/look-9.webp",
+      "garment": "wardrobe-assets/garment-9.jpg"
+    },
+    {
+      "id": "gid://shopify/p/6QBXMk5G045Xh0vYpmbQnv",
+      "variant_id": "gid://shopify/ProductVariant/52772028416281",
+      "title": "Blouses for Women",
+      "store": "MISHOW",
+      "store_id": "gid://shopify/Shop/87016276249",
+      "source_url": "https://mishowstore.com/products/mxf29x2715?variant=52772028416281",
+      "image_url": "https://cdn.shopify.com/s/files/1/0870/1627/6249/files/3034a1133efe01daba919094b70c6310_777337d1-d9e8-4b7d-a918-c57cf236856e.jpg",
+      "price": {
+        "amount": 5426,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Green"
+        },
+        {
+          "name": "Size",
+          "label": "S"
+        }
+      ],
+      "name": "綠色荷葉邊無袖上衣",
+      "legacy": false,
+      "result": "wardrobe-assets/look-10.webp",
+      "garment": "wardrobe-assets/garment-10.jpg"
+    },
+    {
+      "id": "gid://shopify/p/1ubA2RTrzFvx8Xw405iS1p",
+      "variant_id": "gid://shopify/ProductVariant/2367757505",
+      "title": "Bamboo Orchid Red Women's Hawaiian Rayon Shirt",
+      "store": "Lavahut",
+      "store_id": "gid://shopify/Shop/8141421",
+      "source_url": "https://lavahut.com/products/bamboo-orchid-red-ladys-hawaiian-rayon-blouse?variant=2367757505",
+      "image_url": "https://cdn.shopify.com/s/files/1/0814/1421/files/bamboo-orchid-red-womens-hawaiian-rayon-shirt-s-blouses-lavahut-966.webp",
+      "price": {
+        "amount": 5500,
+        "currency": "USD"
+      },
+      "options": [
+        {
+          "name": "Color",
+          "label": "Red"
+        },
+        {
+          "name": "Size",
+          "label": "S"
+        }
+      ],
+      "name": "紅色夏威夷襯衫",
+      "legacy": false,
+      "result": "wardrobe-assets/look-11.webp",
+      "garment": "wardrobe-assets/garment-11.jpg"
+    }
+  ]
+}
