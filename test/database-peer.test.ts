@@ -5,7 +5,7 @@ import { dummyDatabaseCertificate } from "./tls-fixture";
 import { getPool } from "@/lib/db";
 
 afterEach(() => { vi.unstubAllEnvs(); delete (globalThis as { cloakPgPool?: unknown }).cloakPgPool; });
-it.each([{ query: "", trusted: false, ip: "127.0.0.1", allowed: false }, { query: "?sslmode=no-verify", trusted: false, ip: "127.0.0.1", allowed: false }, { query: "", trusted: true, ip: "127.0.0.2", allowed: false }, { query: "", trusted: true, ip: "127.0.0.1", allowed: true }])("authenticates the dummy database peer: %j", async ({ query, trusted, ip, allowed }) => {
+it.each([{ query: "", trusted: false, ip: "127.0.0.1", allowed: false }, { query: "?sslmode=no-verify", trusted: false, ip: "127.0.0.1", allowed: false }, { query: "", trusted: true, ip: "127.0.0.2", allowed: false }, { query: "", trusted: true, ip: "127.0.0.1", allowed: true }, { query: "", trusted: true, ip: "127.0.0.1", allowed: true, hostForm: "query" }, { query: "", trusted: true, ip: "127.0.0.1", allowed: true, hostForm: "environment" }])("authenticates the dummy database peer: %j", async ({ query, trusted, ip, allowed, hostForm }) => {
   const certificate = dummyDatabaseCertificate(ip);
   const secureContext = tls.createSecureContext(certificate);
   let acceptedStartup = false;
@@ -22,7 +22,13 @@ it.each([{ query: "", trusted: false, ip: "127.0.0.1", allowed: false }, { query
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   vi.stubEnv("DATABASE_SSL_CA", trusted ? certificate.cert : "");
   vi.stubEnv("DATABASE_SSL", "true"); vi.stubEnv("PGSSLMODE", "");
-  vi.stubEnv("DATABASE_URL", `postgres://dummy:dummy@127.0.0.1:${(server.address() as net.AddressInfo).port}/dummy${query}`);
+  const port = (server.address() as net.AddressInfo).port;
+  vi.stubEnv("PGHOST", hostForm === "environment" ? "127.0.0.1" : "");
+  vi.stubEnv("DATABASE_URL", hostForm === "query"
+    ? `postgres://dummy:dummy@/dummy?host=127.0.0.1&port=${port}`
+    : hostForm === "environment"
+      ? `postgres:///dummy?port=${port}&user=dummy&password=dummy`
+      : `postgres://dummy:dummy@127.0.0.1:${port}/dummy${query}`);
   const pool = getPool();
   let connected = false, failure = "";
   try { const client = await pool.connect(); connected = true; client.release(); } catch (error) { failure = error instanceof Error ? error.message : String(error); }

@@ -9,7 +9,7 @@ const catalog = JSON.parse(await readFile(new URL('catalog.json', root), 'utf8')
 const json = JSON.stringify(catalog).replaceAll('<', '\\u003c');
 const template = await readFile(new URL('src/template.html', root), 'utf8');
 if (template.split('__CATALOG__').length !== 2) throw new Error('Expected one catalog slot');
-await writeFile(new URL('index.html', output), template.replace('__CATALOG__', json));
+await writeFile(new URL('index.html', output), template.replace('__CATALOG__', () => json));
 const sdkCSS = await readFile(new URL('node_modules/@ui-sdk/core/dist/web.css', root), 'utf8');
 const appCSS = await readFile(new URL('src/app.css', root), 'utf8');
 await writeFile(new URL('cloak-wardrobe.css', output), '@layer ui-sdk;\n' + sdkCSS + '\n' + appCSS);

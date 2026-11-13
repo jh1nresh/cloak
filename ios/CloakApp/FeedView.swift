@@ -70,9 +70,6 @@ struct FeedView: View {
                     onSubmit: {
                         Task {
                             await store.importGarment()
-                            if store.errorMessage == nil {
-                                store.isImportPresented = false
-                            }
                         }
                     },
                     onClose: { store.isImportPresented = false },
@@ -122,11 +119,13 @@ struct FeedView: View {
             await pollActiveLook()
         }
         .onChange(of: selectedGarment) { _, newItem in
-            guard newItem != nil else { return }
+            guard let newItem else { return }
             Task {
-                await store.addLocalGarment(from: newItem!)
-                selectedGarment = nil
-                store.isImportPresented = false
+                await store.addLocalGarment(from: newItem) {
+                    if selectedGarment == newItem {
+                        selectedGarment = nil
+                    }
+                }
             }
         }
     }

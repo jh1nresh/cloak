@@ -106,18 +106,37 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func addLocalGarment(from item: PhotosPickerItem) async {
+    func addLocalGarment(
+        from item: PhotosPickerItem,
+        onSuccess: @MainActor () -> Void = {}
+    ) async {
+        let contentType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
+        await addLocalGarment(
+            contentType: contentType,
+            loadData: { try await item.loadTransferable(type: Data.self) },
+            onSuccess: onSuccess
+        )
+    }
+
+    func addLocalGarment(
+        contentType: String,
+        loadData: @MainActor () async throws -> Data?,
+        onSuccess: @MainActor () -> Void = {}
+    ) async {
         let generation = profileGeneration
         do {
-            guard let data = try await item.loadTransferable(type: Data.self) else {
+            guard let data = try await loadData() else {
                 throw APIClientError.missingResult
             }
             guard generation == profileGeneration else { return }
-            let contentType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
             let garment = Garment.localImage(data: data, contentType: contentType)
             garments.insert(garment, at: 0)
             savedGarmentKeys.insert(garment.libraryKey)
             saveLibraryState()
+            isImportPresented = false
+            // Complete the originating selection before another actor turn can
+            // reset the profile or start a new import.
+            onSuccess()
         } catch {
             guard generation == profileGeneration else { return }
             errorMessage = readable(error)
@@ -145,6 +164,7 @@ final class AppStore: ObservableObject {
             savedGarmentKeys.insert(garment.libraryKey)
             saveLibraryState()
             importURLText = ""
+            isImportPresented = false
         } catch {
             guard generation == profileGeneration else { return }
             errorMessage = readable(error)

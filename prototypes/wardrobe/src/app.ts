@@ -45,7 +45,7 @@ for(const [i,p] of products.entries()){
 }
 let revision=0,currentPage=0;
 const warmed=new Map<string,Promise<void>>();
-function warm(product:Product){if(!warmed.has(product.result)){const image=new Image();image.src=product.result;warmed.set(product.result,image.decode())}return warmed.get(product.result)!}
+function warm(product:Product){if(!warmed.has(product.result)){const image=new Image();image.src=product.result;warmed.set(product.result,image.decode().catch(error=>{warmed.delete(product.result);throw error}))}return warmed.get(product.result)!}
 async function dress(page:number){
  if(page===currentPage)return;currentPage=page;for(const [index,panel] of panels.entries()){panel.hidden=index!==page-1;panel.toggleAttribute('data-active',index===page-1)};const version=++revision,product=products[page-1];document.body.dataset.active=String(page-1);stage.dataset.phase='base';shell.hidden=true;shell.classList.remove('dressing');phase.textContent='黑色背心 · 準備換裝';
  try{await Promise.all([warm(product),new Promise(resolve=>setTimeout(resolve,200))]);if(version!==revision)return;shell.classList.toggle('legacy',product.legacy);layer.src=product.result;layer.alt=product.store+' '+product.name+' 的上身試穿圖層';await layer.decode();if(version!==revision)return;

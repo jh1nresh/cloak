@@ -56,10 +56,12 @@ xcodebuild -project ios/Cloak.xcodeproj -scheme Cloak \
   -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
 ```
 
-The four profile-transition tests use generated marker images and an injected
+The eight profile-transition tests use generated marker images and an injected
 URLProtocol with dummy responses. They cover clear/re-onboard on the rendered
 SwiftUI feed, replacement success/failure, delayed garment-import success/failure,
-and a delayed avatar response after clearing. They exercise the same profile-data
+a delayed avatar response after clearing, and successful/stale import-panel and
+picker-selection completions. The HTTP 200 import fixture is decoded against
+the production response model before it is used. They exercise the same profile-data
 submission path as PhotosPicker; they do not automate the system photo picker or
 call real providers. Use a dedicated simulator because the app's local preferences
 are cleared during these tests, and shut down the task-owned simulator afterward.

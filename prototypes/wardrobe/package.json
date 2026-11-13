@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run build && node test/verify.mjs"
+    "check": "npm run typecheck && npm run build && node test/verify.mjs && node test/regressions.mjs"
   },
   "dependencies": {
     "@ui-sdk/core": "0.1.0-beta.1",

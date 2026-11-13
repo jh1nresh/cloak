@@ -25,9 +25,14 @@ does not change deployment settings or establish the current ingress policy.
 ## Database TLS
 
 Whenever database TLS is selected, the backend verifies both the chain and the
-hostname/IP from `DATABASE_URL`. An operator-managed private CA may be supplied as
+effective database hostname/IP (query `host`, URL host, `PGHOST`, then
+localhost). An operator-managed private CA may be supplied as
 PEM in `DATABASE_SSL_CA`. TLS-control query parameters are removed before `pg`
 parses the connection string, preventing a URL option from replacing this policy.
+The pinned `pg-connection-string` parser preserves driver-supported empty-host
+and Unix-socket forms; no placeholder host is returned or used for verification.
+Version 2.12.0 (MIT), already locked through `pg`, is now an explicit dependency;
+TLS options are screened before invoking it, including certificate-file options.
 URL certificate/key file options are rejected; configure certificates separately.
 
 Deployments using a self-signed/private CA must configure the correct CA before
