@@ -27,9 +27,9 @@ export class SwipeGesture {
       else if(elapsed>=180) { this.anchor={...point,at:now}; this.phase='armed'; }
       return 0;
     }
-    if(dx>.14 || elapsed>900) { this.anchor={...point,at:now}; this.phase='arming'; return 0; }
+    if(dx>.14 || elapsed>1400) { this.anchor={...point,at:now}; this.phase='arming'; return 0; }
     this.phase='armed';
-    if(Math.abs(dy)<.12) return 0;
+    if(Math.abs(dy)<.07) return 0;
     this.lastFired=now;this.blocked=true;this.resetConfirmed=false;this.foldedSince=null;this.anchor=null;this.phase='fired';
     return dy<0?1:-1;
   }

@@ -39,7 +39,8 @@ runtime into its local `dist/` output. No CDN is needed during camera use.
   Extend the index finger with the other three fingers curled; thumb position
   is unrestricted. Keep the hand visible anywhere in the camera frame and
   wait for **已就緒**. Move the extended finger upward for
-  the next garment or downward for the previous one.
+  the next garment or downward for the previous one. A short movement of about
+  7% of camera height is enough; a deliberate stroke can take up to 1.4 seconds.
 - The original preview draws green hand landmarks and reports whether the model
   is loading, no hand is visible, the index pose is recognized, or the
   gesture is ready. No activation box is required. Natural slight fingertip curvature is accepted. If the

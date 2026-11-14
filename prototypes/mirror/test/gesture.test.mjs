@@ -74,7 +74,7 @@ test('index swipes work across the full camera frame in both directions',()=>{
 });
 test('off-camera or invalid coordinates and expired strokes do not fire',()=>{
   for(const x of [-.01,1.01,NaN]){const g=new SwipeGesture();for(const [at,y]of [[0,.65],[200,.65],[400,.4]])assert.equal(g.update(point(x,y),at),0);}
-  const g=new SwipeGesture();g.update(point(.5,.65),0);g.update(point(.5,.65),200);assert.equal(g.update(point(.5,.4),1200),0);
+  const g=new SwipeGesture();g.update(point(.5,.65),0);g.update(point(.5,.65),200);assert.equal(g.update(point(.5,.4),1700),0);
 });
 test('raw landmark sequence integrates pose, directional strokes and a folded return',()=>{
   const g=new SwipeGesture(),actions=[];
@@ -87,4 +87,17 @@ test('new camera session reset clears stale pose and cooldown',()=>{const g=new 
 test('camera overlay follows contained desktop and portrait video',()=>{
   assert.deepEqual(cameraRect(160,205,1280,720),{x:0,y:57.5,width:160,height:90});
   assert.deepEqual(cameraRect(99,130,1280,720),{x:0,y:37.15625,width:99,height:55.6875});
+});
+
+test('short index strokes switch in both directions after arming',()=>{
+  for(const direction of [1,-1]){
+    const g=new SwipeGesture();g.update(point(.5,.5),0);g.update(point(.5,.5),200);
+    assert.equal(g.update(point(.5,.5-direction*.05),300),0);
+    assert.equal(g.update(point(.5,.5-direction*.08),500),direction);
+    assert.equal(g.update(point(.5,.5),1800),0);
+  }
+});
+test('an intentional short stroke can take over a second without losing readiness',()=>{
+  const g=new SwipeGesture();g.update(point(.5,.6),0);g.update(point(.5,.6),200);
+  assert.equal(g.update(point(.5,.56),800),0);assert.equal(g.update(point(.5,.52),1400),1);
 });

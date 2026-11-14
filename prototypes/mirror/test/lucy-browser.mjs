@@ -38,11 +38,11 @@ try{
  check('one live connection starts with original first garment File',await page.evaluate(()=>window.lucyFixture.connectCalls===1&&window.lucyFixture.initial.name==='garment-0.jpg'&&window.lucyFixture.initial.bytes>1000&&window.lucyFixture.initial.prompt.includes('Cotton Voile Blouse')));
  check('main stage shows remote output while PiP retains original input',await page.evaluate(()=>{const o=document.getElementById('liveOutput'),p=document.getElementById('cameraPreview');return !o.hidden&&o.srcObject!==p.srcObject&&p.srcObject===window.lucyFixture.inputs[0]&&document.getElementById('cameraMain').hidden;}));
  check('cloud mode does not claim local-only processing',(await page.locator('#privacyNote').innerText()).includes('Decart'));
- await pose({tipY:.47,mirroredX:.18});await until(async()=>(await state()).liveAccepted===1);
- check('index up sends next store garment through live set',await page.evaluate(()=>window.lucyFixture.sets.at(-1).name==='garment-1.jpg'));
+ await pose({tipY:.57,mirroredX:.18});await until(async()=>(await state()).liveAccepted===1);
+ check('short index up sends next store garment through live set',await page.evaluate(()=>window.lucyFixture.sets.at(-1).name==='garment-1.jpg'));
  await pose({tipY:.7,mirroredX:.18});await sleep(1200);check('extended return cannot send another live garment',await page.evaluate(()=>window.lucyFixture.sets.length===1));
- await pose({pose:'folded',tipY:.6});await until(async()=>(await state()).gesturePhase==='idle'&&(await state()).indexPose==='folded');await pose({tipY:.3,mirroredX:.5});await until(async()=>(await state()).gesturePhase==='armed');await pose({tipY:.5,mirroredX:.5});await until(async()=>(await state()).liveAccepted===0);
- check('fold then index down sends previous garment',await page.evaluate(()=>window.lucyFixture.sets.at(-1).name==='garment-0.jpg'));
+ await pose({pose:'folded',tipY:.6});await until(async()=>(await state()).gesturePhase==='idle'&&(await state()).indexPose==='folded');await pose({tipY:.3,mirroredX:.5});await until(async()=>(await state()).gesturePhase==='armed');await pose({tipY:.38,mirroredX:.5});await until(async()=>(await state()).liveAccepted===0);
+ check('fold then short index down sends previous garment',await page.evaluate(()=>window.lucyFixture.sets.at(-1).name==='garment-0.jpg'));
  await page.locator('#garments ui-toggle').nth(2).click();await until(async()=>(await state()).liveAccepted===2);
  check('left garment rail controls same live connection',await page.evaluate(()=>window.lucyFixture.connectCalls===1&&window.lucyFixture.sets.at(-1).name==='garment-2.jpg'));
  check('reference acknowledgement is not claimed as verified rendered fit',(await page.locator('#selectionState').innerText()).includes('參考已送出'));

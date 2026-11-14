@@ -40,8 +40,8 @@ try{
   check('index-only guidance is visible',(await page.locator('#cameraState').innerText()).includes('食指'));
   check('no activation box or box instruction remains',await page.locator('#previewSensor').count()===0&&!(await page.locator('#gestureHint').innerText()).includes('虛線'));
   await page.screenshot({path:'qa/index-finger-guide.png'});
-  await pose({tipY:.47,mirroredX:.18});await until(async()=>(await state()).selected===1&&(await state()).displayed===1);
-  check('index up stroke on left side reaches actual outfit selection',(await state()).gestureSwitches===1);
+  await pose({tipY:.57,mirroredX:.18});await until(async()=>(await state()).selected===1&&(await state()).displayed===1);
+  check('short index up stroke on left side reaches actual outfit selection',(await state()).gestureSwitches===1);
   await pose({tipY:.7});await sleep(1300);
   check('extended-finger return cannot select previous',(await state()).selected===1&&(await state()).gestureSwitches===1);
   await pose(null);await sleep(350);await pose({tipY:.65});await sleep(300);await pose({tipY:.45});await sleep(300);
@@ -50,8 +50,8 @@ try{
   await pose({pose:'folded',tipY:.45});await sleep(140);await pose({pose:'folded',tipY:.7});await sleep(300);
   check('folded-finger return does not change garments',(await state()).selected===1&&(await state()).gestureSwitches===1);
   await pose({tipY:.32,mirroredX:.5});await until(async()=>(await state()).gesturePhase==='armed');
-  await pose({tipY:.5,mirroredX:.5});await until(async()=>(await state()).selected===0&&(await state()).displayed===0);
-  check('newly extended index down stroke at centre selects previous',(await state()).gestureSwitches===2);
+  await pose({tipY:.40,mirroredX:.5});await until(async()=>(await state()).selected===0&&(await state()).displayed===0);
+  check('short newly extended index down stroke at centre selects previous',(await state()).gestureSwitches===2);
   await page.click('#stopCamera button');
   check('index gesture mode releases camera and worker',await page.evaluate(()=>!window.cloakMirror.getState().worker&&window.fixtureCameraStreams.every(stream=>stream.getTracks().every(track=>track.readyState==='ended'))));
   const cameraCalls=await page.evaluate(()=>window.fixtureCameraStreams.length);

@@ -6,7 +6,7 @@
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/gesture.test.mjs test/model.test.mjs test/trial.test.mjs",
-    "check": "npm run typecheck && npm test && npm run build && node test/browser.mjs && node test/index-browser.mjs && node test/hand-model-browser.mjs && node test/lucy-browser.mjs",
+    "check": "npm run typecheck && npm test && npm run build && node test/browser.mjs && node test/rail-browser.mjs && node test/index-browser.mjs && node test/hand-model-browser.mjs && node test/lucy-browser.mjs",
     "download-model": "node download-model.mjs",
     "serve": "node server.mjs",
     "test:hand-model": "node test/hand-model-browser.mjs"

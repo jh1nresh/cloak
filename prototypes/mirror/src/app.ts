@@ -103,7 +103,7 @@ async function select(index:number,origin='navigation'){
   link.href=url.href;
   $('position').replaceChildren(document.createTextNode(String(selected+1).padStart(2,'0')+' '));
   const count=document.createElement('span');count.textContent='/ '+products.length;$('position').append(count);
-  if(origin!=='rail')group.querySelectorAll('ui-toggle')[selected]?.scrollIntoView({block:'nearest',behavior:'instant'});
+  if(origin!=='rail')group.querySelectorAll('button.garment')[selected]?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
   void sendLive();
   phase='pending';shell.hidden=true;shell.classList.remove('dressing');selectionLabel();
   try{
