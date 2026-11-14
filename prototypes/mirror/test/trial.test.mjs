@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {createTokenGate,tokenOptions,MODEL} from '../trial-policy.mjs';
@@ -32,4 +32,16 @@ test('provider failure and invalid scope remain consumed with no automatic retry
   for(const token of [null,{apiKey:'fixture',permissions:{models:[MODEL]},constraints:{realtime:{maxSessionDuration:300}}},{apiKey:'dct_permanent',permissions:{models:[MODEL],origins:[origin]},constraints:{realtime:{maxSessionDuration:30}}}]){
     const f=await fixture(t,{mint:async()=>{if(!token)throw Error('Fixture failure');return token;}});const r=await f.gate.issue(f.request());assert.equal(r.code,502);assert.equal(r.apiKey,undefined);assert.equal((await f.gate.issue(f.request())).code,409);
   }
+});
+
+test('token outcomes persist safe success/failure metadata without credential or raw error',async t=>{
+  const f=await fixture(t);await f.gate.issue(f.request());const saved=JSON.parse(await readFile(f.config.reservationPath,'utf8'));
+  assert.equal(saved.state,'issued');assert.equal(saved.apiKey,undefined);assert.equal(createTokenGate(f.config).config().lastTokenResult.state,'issued');
+  const bad=await fixture(t,{mint:async()=>{throw Object.assign(Error('secret raw message'),{status:401});}});await bad.gate.issue(bad.request());
+  const text=await readFile(bad.config.reservationPath,'utf8');assert.ok(!text.includes('secret'));assert.deepEqual(createTokenGate(bad.config).config().lastTokenResult,{state:'failed',httpStatus:401});
+});
+test('losing reservation-file creation cannot overwrite another server outcome',async t=>{
+  const f=await fixture(t),other=createTokenGate(f.config);await f.gate.issue(f.request());
+  const before=await readFile(f.config.reservationPath,'utf8');await other.issue({...f.request(),secret:other.config().csrf});
+  assert.equal(await readFile(f.config.reservationPath,'utf8'),before);assert.equal(f.calls(),1);assert.deepEqual(other.config().lastTokenResult,{state:'unknown',httpStatus:0});
 });

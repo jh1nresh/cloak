@@ -9,7 +9,7 @@ const routes=new Map();
 await mkdir(path.dirname(reservationPath),{recursive:true});
 const gate=createTokenGate({reservationPath,configured,mint:mint??(async options=>{
   const response=await fetch('https://api.decart.ai/v1/client/tokens',{method:'POST',headers:{'Content-Type':'application/json','X-API-KEY':process.env.DECART_API_KEY},body:JSON.stringify(options),signal:AbortSignal.timeout(10000),redirect:'error'});
-  if(!response.ok)throw Error('Token request failed');
+  if(!response.ok)throw Object.assign(Error('Token request failed'),{status:response.status});
   return response.json();
 })});
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.jpg':'image/jpeg','.webp':'image/webp','.wasm':'application/wasm','.task':'application/octet-stream','.json':'application/json'};

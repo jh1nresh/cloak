@@ -28,7 +28,7 @@ storage, verified against the URL, byte length and SHA-256 in
 reported without overwriting it. Model and WebAssembly binaries, dependencies,
 generated output and QA artifacts are not committed. The build uses the existing
 wardrobe catalog and public demo assets, and copies the installed MediaPipe
-runtime into its local `dist/` output. No CDN is needed during camera use.
+runtime and pinned Decart frame-metadata worker into its local `dist/` output. No CDN is needed during camera use.
 
 ## Try the controls
 
@@ -80,6 +80,22 @@ for a script-free stopped page to close that document's WebRTC owner. A rejected
 request or disconnected session is shown as a failure, never a successful fit.
 The UI distinguishes selection, reference acceptance and a received remote
 stream: reference acknowledgement does not prove the rendered garment matches.
+
+## Connection diagnosis
+
+The build includes Decart’s separate frame-metadata worker alongside the SDK
+bundle. A no-dial browser probe exercises the actual SDK with blocked WebSocket
+construction and verifies the worker URL is served; it creates no token/session.
+
+A local diagnostic summary distinguishes token outcome, whether the SDK ever
+connected, actual received AI video frames and accepted reference updates.
+Zero frames is not treated as successful AI video. Errors survive Stop, page
+exit and reload in tab-local sessionStorage, so a camera-stop notice cannot
+erase them. Only allowlisted codes and bounded counters persist: no camera
+images, landmarks, provider messages, URLs, session IDs or credentials.
+The server's ignored reservation receipt records token issued/failed status and
+a safe upstream HTTP status. Old receipts without an outcome remain unknown;
+reservation alone never proves a successful connection or billed inference.
 
 ## What the prototype demonstrates
 

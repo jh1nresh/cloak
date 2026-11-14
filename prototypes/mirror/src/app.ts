@@ -1,6 +1,7 @@
 import '@ui-sdk/web/button';
 import '@ui-sdk/web/toggle';
 import {createAgent,registerTools} from '@ui-sdk/web/agent';
+import {emptyDiagnosis,cleanDiagnosis,safeCode} from './diagnostics.mjs';
 import {SwipeGesture,indexPoint,cameraRect} from './gesture.mjs';
 
 type Product={variant_id:string;name:string;title:string;store:string;source_url:string;result:string;garment:string;legacy?:boolean};
@@ -15,6 +16,18 @@ const output=$<HTMLVideoElement>('liveOutput');
 type LiveHandle=Awaited<ReturnType<typeof import('./lucy.js').connectLucy>>;
 let live:LiveHandle|null=null,liveRun=0,livePhase='idle',liveAccepted=-1,liveBusy=false,livePending=false,liveVisible=false,trialUsed=false;
 let liveAbort:AbortController|null=null,liveTimer:number|undefined;
+let diagnosis=emptyDiagnosis(),frameCount=0,frameWatch=0;
+try{diagnosis=cleanDiagnosis(JSON.parse(sessionStorage.getItem('cloak-lucy-diagnosis')??'null'));frameCount=diagnosis.frames;}catch{}
+function reportDiagnosis(patch:Partial<typeof diagnosis>={}){
+  diagnosis=cleanDiagnosis({...diagnosis,...patch});
+  try{sessionStorage.setItem('cloak-lucy-diagnosis',JSON.stringify(diagnosis));}catch{}
+  const text=$('liveDiagnosis');text.hidden=diagnosis.token==='not_requested'&&!diagnosis.error;
+  text.textContent='Lucy診斷 · Token '+({not_requested:'未申請',requesting:'申請中',issued:'成功',failed:'失敗'}[diagnosis.token]??'未知')+' · 連線'+(diagnosis.connected?'曾建立':'未建立')+' · AI影格 '+diagnosis.frames+' · 參考送出 '+diagnosis.references+(diagnosis.error?' · 錯誤 '+diagnosis.error:'');
+}
+function watchLiveFrames(run:number){
+  if(!output.requestVideoFrameCallback)return;
+  frameWatch=output.requestVideoFrameCallback(()=>{if(run!==liveRun)return;frameCount++;if(frameCount===1||frameCount%30===0)reportDiagnosis({frames:frameCount});watchLiveFrames(run);});
+}
 const shell=$('clothingShell'), clothing=$<HTMLImageElement>('clothingImage');
 let selected=0,displayed=-1,revision=0,phase='loading',mode='demo';
 let cameraRun=0,stream:MediaStream|null=null,cameraPhase='idle',startPromise:Promise<MediaStream|null>|null=null;
@@ -145,6 +158,7 @@ function stopHands(){
 }
 
 function stopCamera(reason='鏡頭已停止；可以重新開啟'){
+  if(livePhase!=='idle'&&!diagnosis.error&&(reason.includes('逾時')||reason.includes('25秒')))reportDiagnosis({error:reason.includes('逾時')?'START_TIMEOUT':'TRIAL_TIMEOUT'});
   stopLive();
   cameraRun++;clearTimeout(autoStop);stopHands();
   const owned=stream;stream=null;startPromise=null;cameraPhase='idle';
@@ -185,6 +199,8 @@ function startCamera(showCamera=true):Promise<MediaStream|null>{
 }
 
 function stopLive(){
+  if(livePhase!=='idle')reportDiagnosis({frames:frameCount});
+  if(frameWatch)output.cancelVideoFrameCallback?.(frameWatch);frameWatch=0;
   const pending=livePending;liveRun++;clearTimeout(liveTimer);liveAbort?.abort();liveAbort=null;
   const owned=live;live=null;livePending=false;liveBusy=false;liveVisible=false;livePhase='idle';liveAccepted=-1;
   owned?.disconnect();
@@ -211,9 +227,9 @@ async function sendLive(){
       if(index!==selected)continue;
       await owned.set({image,prompt:livePrompt(products[index]),enhance:false});
       if(run!==liveRun)return;
-      liveAccepted=index;selectionLabel();
+      liveAccepted=index;reportDiagnosis({references:diagnosis.references+1});selectionLabel();
     }
-  }catch{if(run===liveRun)stopCamera('Lucy 換衣失敗，已停止；不會自動重試');}
+  }catch(error){if(run===liveRun){reportDiagnosis({error:safeCode(error,'SET_FAILED')});stopCamera('Lucy 換衣失敗，已停止；不會自動重試');}}
   finally{if(run===liveRun)liveBusy=false;}
 }
 async function startLive(){
@@ -222,9 +238,10 @@ async function startLive(){
   liveTimer=window.setTimeout(()=>{if(run===liveRun)stopCamera('Lucy 啟動逾時，已停止；可以檢查本機服務');},15000);
   status('準備 Lucy；按開始後鏡頭影像傳至 Decart，標準模式最多25秒');
   try{
-    const response=await fetch('/api/realtime-config',{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('Config unavailable');
+    const response=await fetch('/api/realtime-config',{cache:'no-store',signal:controller.signal});if(!response.ok)throw Object.assign(Error('Config unavailable'),{status:response.status});
     const config=await response.json();if(run!==liveRun)return;
     if(!config.configured||config.reserved){trialUsed=!!config.reserved;stopCamera(config.reserved?'這次 AI 試用已使用；不會自動重試':'本機尚未設定 Decart 金鑰');return;}
+    frameCount=0;diagnosis=emptyDiagnosis();reportDiagnosis();
     const adapter=await import('./lucy.js');if(run!==liveRun)return;
     const camera=await startCamera();if(run!==liveRun||!camera)return;
     clearTimeout(autoStop);clearTimeout(liveTimer);liveTimer=window.setTimeout(()=>stopCamera('25秒 AI 試用已停止；不會自動重連'),25000);
@@ -234,25 +251,26 @@ async function startLive(){
     const connected=await adapter.connectLucy(camera,{
       image,prompt:livePrompt(products[index]),
       token:async()=>{
-        if(tokenRequested||run!==liveRun)throw Error('Reconnect disabled');tokenRequested=true;trialUsed=true;buttonState();
+        if(tokenRequested||run!==liveRun)throw Error('Reconnect disabled');tokenRequested=true;trialUsed=true;reportDiagnosis({token:'requesting'});buttonState();
         const res=await fetch('/api/realtime-token',{method:'POST',headers:{'Content-Type':'application/json','X-Cloak-Token':config.csrf},body:JSON.stringify({start:true}),signal:controller.signal});
-        if(!res.ok)throw Error('Token unavailable');const token=await res.json();if(run!==liveRun)throw Error('Stopped');return token.apiKey;
+        if(!res.ok){reportDiagnosis({token:'failed',error:safeCode({status:res.status},'TOKEN_FAILED')});throw Object.assign(Error('Token unavailable'),{status:res.status});}const token=await res.json();if(run!==liveRun)throw Error('Stopped');reportDiagnosis({token:'issued'});return token.apiKey;
       },
       onStream:remote=>{
         if(run!==liveRun){remote.getTracks().forEach(track=>track.stop());return;}
-        remote.getAudioTracks().forEach(track=>track.stop());output.srcObject=remote;
-        void output.play().then(()=>{if(run!==liveRun)return;liveVisible=true;views();}).catch(()=>{if(run===liveRun)stopCamera('AI 畫面無法播放，已停止');});
+        remote.getAudioTracks().forEach(track=>track.stop());output.srcObject=remote;if(frameWatch)output.cancelVideoFrameCallback?.(frameWatch);watchLiveFrames(run);
+        if(!output.requestVideoFrameCallback)output.addEventListener('loadeddata',()=>{if(run===liveRun){frameCount=1;reportDiagnosis({frames:1});}},{once:true,signal:controller.signal});
+        void output.play().then(()=>{if(run!==liveRun)return;liveVisible=true;views();}).catch(()=>{if(run===liveRun){reportDiagnosis({error:'PLAYBACK_FAILED'});stopCamera('AI 畫面無法播放，已停止');}});
       },
-      onConnection:state=>{if(run===liveRun&&(state==='reconnecting'||state==='disconnected'))stopCamera('Lucy 連線中斷，已停止；不自動重連');}
+      onConnection:state=>{if(run===liveRun&&(state==='reconnecting'||state==='disconnected')){reportDiagnosis({error:'CONNECTION_ENDED'});stopCamera('Lucy 連線中斷，已停止；不自動重連');}}
     });
     if(run!==liveRun){connected.disconnect();return;}
-    livePending=false;live=connected;livePhase='connected';liveAccepted=index;buttonState();views();
-    connected.on('error',()=>{if(run===liveRun)stopCamera('Lucy 串流錯誤，已停止');});
-    connected.on('sessionEnded',()=>{if(run===liveRun)stopCamera('Lucy 試用已結束');});
+    livePending=false;live=connected;livePhase='connected';liveAccepted=index;reportDiagnosis({connected:true});buttonState();views();
+    connected.on('error',error=>{if(run===liveRun){reportDiagnosis({error:safeCode(error,'REMOTE_ERROR')});stopCamera('Lucy 串流錯誤，已停止');}});
+    connected.on('sessionEnded',()=>{if(run===liveRun){reportDiagnosis({error:'SESSION_ENDED'});stopCamera('Lucy 試用已結束');}});
     status('Lucy 已連線；只伸食指停一下，上滑下一件、下滑上一件');
     if(!gestures.pressed){gestures.pressed=true;void startHands();}
     void sendLive();
-  }catch{if(run===liveRun){livePending=false;stopCamera('Lucy 無法連線，已停止；不會自動重試');}}
+  }catch(error){if(run===liveRun){reportDiagnosis({token:diagnosis.token==='requesting'?'failed':diagnosis.token,error:diagnosis.error||safeCode(error)});livePending=false;stopCamera('Lucy 無法連線，已停止；不會自動重試');}}
 }
 
 async function startHands(){
@@ -346,9 +364,9 @@ const allow=(step:{confirm?:unknown;label?:string})=>!step.confirm&&(['下一件
 const agent=createAgent({allow});
 let unregister=registerTools(agent,{allow});
 window.addEventListener('pageshow',event=>{if(event.persisted){unregister();unregister=registerTools(agent,{allow});}});
-const getState=()=>({selected,displayed,phase,mode,cameraPhase,cameraGeneration:cameraRun,tracks:stream?.getTracks().map(track=>track.readyState)??[],worker:!!worker,gestureFrames,gestureSwitches,gesturePhase:gesture.phase,handError,handPresent,indexPose,livePhase,liveAccepted,liveVisible,trialUsed});
+const getState=()=>({selected,displayed,phase,mode,cameraPhase,cameraGeneration:cameraRun,tracks:stream?.getTracks().map(track=>track.readyState)??[],worker:!!worker,gestureFrames,gestureSwitches,gesturePhase:gesture.phase,handError,handPresent,indexPose,livePhase,liveAccepted,liveVisible,trialUsed,diagnosis:{...diagnosis}});
 Object.assign(window,{cloakMirror:{agent,getState,stop:stopCamera}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera('頁面已離開；鏡頭已停止');});
 window.addEventListener('pagehide',()=>{stopCamera();unregister();clearTimeout(wheelTimer);});
 new ResizeObserver(positionHandOverlay).observe(source);
-buttonState();views();await select(0);document.body.dataset.ready='true';
+buttonState();views();reportDiagnosis();await select(0);document.body.dataset.ready='true';
