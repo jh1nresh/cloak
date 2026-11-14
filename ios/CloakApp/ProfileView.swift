@@ -205,7 +205,8 @@ struct FitProfileView: View {
     /// Motion looks are generated against a short clip of the user, not the
     /// still fit photo, so the capture lives alongside it.
     private var bodyCaptureSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let hasBodyCapture = store.hasBodyCapture
+        return VStack(alignment: .leading, spacing: 8) {
             Rectangle()
                 .fill(CloakTheme.line)
                 .frame(height: 1)
@@ -216,7 +217,7 @@ struct FitProfileView: View {
                 .tracking(1.2)
                 .foregroundStyle(CloakTheme.action)
 
-            Text(store.hasBodyCapture ? "Motion try-on is on" : "See looks move on you")
+            Text(hasBodyCapture ? "Motion try-on is on" : "See looks move on you")
                 .font(.system(.title2, design: .serif, weight: .medium))
                 .foregroundStyle(CloakTheme.ink)
 
@@ -227,7 +228,7 @@ struct FitProfileView: View {
 
             PhotosPicker(selection: $selectedBodyVideo, matching: .videos) {
                 Label(
-                    store.hasBodyCapture ? "Replace body video" : "Add body video",
+                    hasBodyCapture ? "Replace body video" : "Add body video",
                     systemImage: "video.badge.plus"
                 )
                 .frame(maxWidth: .infinity)

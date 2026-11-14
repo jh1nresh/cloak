@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "mobile/**",
+    "prototypes/wardrobe/**",
+    "public/prototypes/wardrobe/**",
     "next-env.d.ts",
   ]),
 ]);

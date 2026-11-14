@@ -1,5 +1,6 @@
 import dns from "node:dns/promises";
 import net from "node:net";
+import { Agent, fetch as fetchPinned, type Response as PinnedResponse } from "undici";
 import type { NextRequest } from "next/server";
 
 export type RateLimitOptions = {
@@ -43,9 +44,10 @@ export class InputValidationError extends Error {
 }
 
 export function getClientIp(request: NextRequest) {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) return forwardedFor.split(",")[0].trim();
-  return request.headers.get("x-real-ip") || "unknown";
+  const header = process.env.CLOAK_TRUSTED_IP_HEADER?.toLowerCase();
+  if (!header || !/^[a-z0-9-]{1,64}$/.test(header)) return "unknown";
+  const address = request.headers.get(header)?.trim();
+  return address && net.isIP(address) ? address : "unknown";
 }
 
 export function checkRateLimit(key: string, options: RateLimitOptions) {
@@ -164,6 +166,10 @@ export function assertValidImageDataUrl(
 }
 
 export async function assertPublicHttpUrl(input: string) {
+  return (await resolvePublicHttpUrl(input)).url;
+}
+
+async function resolvePublicHttpUrl(input: string) {
   if (input.length > 2048) {
     throw new InputValidationError("URL is too long");
   }
@@ -183,7 +189,7 @@ export async function assertPublicHttpUrl(input: string) {
     throw new InputValidationError("URLs with credentials are not allowed");
   }
 
-  const hostname = url.hostname.toLowerCase();
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (
     hostname === "localhost" ||
     hostname.endsWith(".localhost") ||
@@ -192,10 +198,10 @@ export async function assertPublicHttpUrl(input: string) {
     throw new InputValidationError("Local URLs are not allowed");
   }
 
-  let addresses: Array<{ address: string }>;
+  let addresses: Array<{ address: string; family: number }>;
   try {
     addresses = net.isIP(hostname)
-      ? [{ address: hostname }]
+      ? [{ address: hostname, family: net.isIP(hostname) }]
       : await dns.lookup(hostname, { all: true, verbatim: true });
   } catch {
     throw new InputValidationError("URL host could not be resolved");
@@ -211,52 +217,73 @@ export async function assertPublicHttpUrl(input: string) {
     }
   }
 
-  return url;
+  return { url, addresses };
 }
 
 export async function fetchPublicUrl(
   input: string,
-  init: RequestInit = {},
+  init: Pick<RequestInit, "headers" | "signal"> = {},
   maxRedirects = 3
 ) {
-  let url = await assertPublicHttpUrl(input);
+  let current = input;
+  const deadline = AbortSignal.timeout(8000);
+  const signal = init.signal ? AbortSignal.any([init.signal, deadline]) : deadline;
 
   for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-
+    const { url, addresses } = await resolvePublicHttpUrl(current);
+    const selected = addresses.find(address => address.family === 4) || addresses[0];
+    // Pin the validated address while keeping the original Host and TLS server name.
+    const dispatcher = new Agent({ connect: {
+      autoSelectFamily: false,
+      lookup: (_hostname, _options, callback) => callback(null, selected.address, selected.family),
+    } });
     try {
-      const response = await fetch(url, {
-        ...init,
-        redirect: "manual",
-        signal: controller.signal,
-      });
-
-      if (
-        response.status >= 300 &&
-        response.status < 400 &&
-        response.headers.has("location")
-      ) {
-        if (redirectCount === maxRedirects) {
-          throw new InputValidationError("Too many redirects");
-        }
-
-        url = await assertPublicHttpUrl(
-          new URL(response.headers.get("location") || "", url).toString()
-        );
+      const response = await fetchPinned(url, { headers: [...new Headers(init.headers)], dispatcher, redirect: "manual", signal });
+      if (response.status >= 300 && response.status < 400 && response.headers.has("location")) {
+        await response.body?.cancel().catch(() => undefined);
+        if (redirectCount === maxRedirects) throw new InputValidationError("Too many redirects");
+        current = new URL(response.headers.get("location")!, url).toString();
         continue;
       }
-
       return response;
     } finally {
-      clearTimeout(timeout);
+      // Closing waits for the body; its abort deadline stays active after headers.
+      void dispatcher.close().catch(() => dispatcher.destroy()).catch(() => undefined);
     }
   }
-
   throw new InputValidationError("Too many redirects");
 }
 
-export async function readTextWithLimit(response: Response, maxBytes: number) {
+export async function readBytesWithLimit(response: Response | PinnedResponse, maxBytes: number) {
+  if (Number(response.headers.get("content-length")) > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new InputValidationError("Source asset is too large", 413);
+  }
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new InputValidationError("Source asset is too large", 413);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return bytes;
+}
+
+export async function readTextWithLimit(response: Response | PinnedResponse, maxBytes: number) {
   if (!response.body) {
     const text = await response.text();
     if (new TextEncoder().encode(text).length > maxBytes) {
@@ -330,7 +357,12 @@ function isBlockedIpv6(address: string) {
   }
 
   if (normalized.startsWith("::ffff:")) {
-    return isBlockedIpv4(normalized.replace("::ffff:", ""));
+    const mapped = normalized.slice("::ffff:".length);
+    if (net.isIP(mapped) === 4) return isBlockedIpv4(mapped);
+    const groups = mapped.split(":");
+    if (groups.length !== 2 || groups.some(group => !/^[0-9a-f]{1,4}$/.test(group))) return true;
+    const [high, low] = groups.map(group => parseInt(group, 16));
+    return isBlockedIpv4([high >> 8, high & 255, low >> 8, low & 255].join("."));
   }
 
   return false;

@@ -93,3 +93,10 @@ npx tsc --noEmit
 npm run build
 npm run check
 ```
+
+## Sliding wardrobe prototype
+
+The static phone-first prototype at `/prototypes/wardrobe/index.html` contains
+12 distinct pre-generated looks from three Shopify shops. It keeps the person fixed
+and reveals the next garment when swiping vertically. See
+[prototype setup, rebuild and limitations](prototypes/wardrobe/README.md).
