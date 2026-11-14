@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {SwipeGesture,indexPoint,sensorRect} from '../src/gesture.mjs';
+import {readFile} from 'node:fs/promises';
+import {SwipeGesture,indexPoint,sensorRect,cameraRect} from '../src/gesture.mjs';
 import {handPose} from './hand-fixtures.mjs';
 const point=(x,y,pose='index')=>({x,y,pointing:pose==='index',retracted:pose==='folded'});
 function fire(g,direction=1,at=0){
@@ -14,6 +15,14 @@ test('index tip, rather than palm centre, provides mirrored navigation coordinat
 });
 test('folded index is explicit neutral and cannot activate a swipe',()=>{
   const p=indexPoint(handPose({pose:'folded'}));assert.equal(p.retracted,true);assert.equal(p.pointing,false);
+});
+test('official MediaPipe pointing-up pose accepts natural distal-joint curvature',async()=>{
+  const sample=JSON.parse(await readFile(new URL('fixtures/pointing-up.json',import.meta.url),'utf8'));
+  const pose=indexPoint(sample.landmarks,sample.worldLandmarks);assert.equal(pose.pointing,true);assert.equal(pose.retracted,false);
+});
+test('a substantially bent fingertip cannot activate index navigation',()=>{
+  const points=handPose(),world=structuredClone(points);world[8]={...world[7],x:world[7].x+.05};
+  assert.equal(indexPoint(points,world).pointing,false);
 });
 test('open palm and two extended fingers do not activate or reset the index gesture',()=>{
   for(const pose of ['palm','two']){const p=indexPoint(handPose({pose}));assert.equal(p.pointing,false);assert.equal(p.retracted,false);}
@@ -73,6 +82,7 @@ test('raw landmark sequence integrates pose, directional strokes and a folded re
 });
 test('new camera session reset clears stale pose and cooldown',()=>{const g=new SwipeGesture();fire(g);g.reset();fire(g,-1,2000);});
 test('sensor marker follows full camera coordinates inside desktop and portrait preview',()=>{
+  assert.deepEqual(cameraRect(160,205,1280,720),{x:0,y:57.5,width:160,height:90});
   const r=sensorRect(160,205,1280,720);assert.equal(r.x,112);assert.equal(r.y,66.5);assert.equal(r.height,72);assert.ok(Math.abs(r.width-44.8)<.0001);
   const phone=sensorRect(99,130,1280,720);assert.ok(phone.x>0&&phone.x+phone.width<99&&phone.y>0&&phone.y+phone.height<130);
 });

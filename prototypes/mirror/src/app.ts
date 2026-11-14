@@ -1,7 +1,7 @@
 import '@ui-sdk/web/button';
 import '@ui-sdk/web/toggle';
 import {createAgent,registerTools} from '@ui-sdk/web/agent';
-import {SwipeGesture,indexPoint,sensorRect} from './gesture.mjs';
+import {SwipeGesture,indexPoint,sensorRect,cameraRect,SENSOR} from './gesture.mjs';
 
 type Product={variant_id:string;name:string;title:string;store:string;source_url:string;result:string;garment:string;legacy?:boolean};
 type Toggle=HTMLElement&{pressed:boolean};
@@ -15,7 +15,8 @@ const shell=$('clothingShell'), clothing=$<HTMLImageElement>('clothingImage');
 let selected=0,displayed=-1,revision=0,phase='loading',mode='demo';
 let cameraRun=0,stream:MediaStream|null=null,cameraPhase='idle',startPromise:Promise<MediaStream|null>|null=null;
 let worker:Worker|null=null,gestureRun=0,raf=0,busy=false,lastFrame=0,lastVideoTime=-1,autoStop:number|undefined,handInitTimer:number|undefined;
-let gestureFrames=0,gestureSwitches=0,handError='';
+let gestureFrames=0,gestureSwitches=0,handError='',handPresent=false,indexPose='none',lastResult=0;
+let handPreflight:AbortController|null=null;
 const gesture=new SwipeGesture(), warmed=new Map<string,Promise<void>>();
 const status=(text:string)=>{$('cameraState').textContent=text;};
 const buttonState=()=>{
@@ -43,6 +44,28 @@ function positionSensor(){
   if(marker.hidden||!source.videoWidth)return;
   const rect=sensorRect(source.clientWidth,source.clientHeight,source.videoWidth,source.videoHeight);
   marker.style.left=rect.x+'px';marker.style.top=rect.y+'px';marker.style.width=rect.width+'px';marker.style.height=rect.height+'px';
+  const image=cameraRect(source.clientWidth,source.clientHeight,source.videoWidth,source.videoHeight),overlay=$('handOverlay');
+  overlay.style.left=image.x+'px';overlay.style.top=image.y+'px';overlay.style.width=image.width+'px';overlay.style.height=image.height+'px';
+}
+
+function handFeedback(text:string,state:string){
+  const label=$('handStatus');label.hidden=false;label.dataset.state=state;
+  if(label.textContent!==text)label.textContent=text;
+  if($('gestureHint').textContent!==text)$('gestureHint').textContent=text;
+}
+
+function drawHand(points:{x:number;y:number}[]|null){
+  const overlay=document.getElementById('handOverlay')!;
+  overlay.replaceChildren();overlay.toggleAttribute('hidden',!points);
+  if(!points)return;
+  const ns='http://www.w3.org/2000/svg',line=document.createElementNS(ns,'path');
+  const links=[[0,1,2,3,4],[0,5,6,7,8],[5,9,10,11,12],[9,13,14,15,16],[13,17,18,19,20],[17,0]];
+  const coordinate=(i:number)=>`${(1-points[i].x)*1000},${points[i].y*1000}`;
+  line.setAttribute('d',links.map(link=>'M'+link.map(coordinate).join('L')).join(' '));overlay.append(line);
+  for(const [i,p]of points.entries()){
+    const dot=document.createElementNS(ns,'circle');dot.setAttribute('cx',String((1-p.x)*1000));dot.setAttribute('cy',String(p.y*1000));dot.setAttribute('r',i===8?'28':'12');
+    if(i===8)dot.setAttribute('class','index-tip');overlay.append(dot);
+  }
 }
 
 function selectionLabel(){
@@ -111,7 +134,9 @@ for(const [i,item] of products.entries()){
 
 function stopHands(){
   gestureRun++;cancelAnimationFrame(raf);clearTimeout(handInitTimer);raf=0;
+  handPreflight?.abort();handPreflight=null;
   worker?.terminate();worker=null;busy=false;lastFrame=0;lastVideoTime=-1;gesture.reset();
+  handPresent=false;indexPose='none';drawHand(null);$('handStatus').hidden=true;
   gestures.pressed=false;$('gestureZone').hidden=true;
   $('previewSensor').hidden=true;
 }
@@ -157,25 +182,44 @@ function startCamera(showCamera=true):Promise<MediaStream|null>{
 
 async function startHands(){
   const run=++gestureRun;
+  const fail=(reason='手部模型未能啟動；請重新整理或用 Chrome 開啟')=>{if(run!==gestureRun)return;stopHands();status(reason);handFeedback(reason,'error');};
   status('開啟本機手勢；不傳送鏡頭影像');
+  handFeedback('正在連接本機手部模型…','loading');
+  const controller=new AbortController();handPreflight=controller;
+  const checkTimeout=window.setTimeout(()=>controller.abort(),4000);
+  try{
+    const response=await fetch(new URL('models/source.json',import.meta.url),{cache:'no-store',signal:controller.signal});
+    if(!response.ok)throw Error('Local model unavailable');
+  }catch{fail('本機預覽服務或模型檔案無法連接，請重新啟動預覽');return;}
+  finally{clearTimeout(checkTimeout);if(handPreflight===controller)handPreflight=null;}
+  if(run!==gestureRun||!gestures.pressed)return;
+  handFeedback('等待本機鏡頭畫面…','loading');
   const camera=await startCamera(false);
   if(run!==gestureRun||!gestures.pressed||!camera)return;
-  if(!window.Worker||!window.createImageBitmap){stopHands();status('此瀏覽器無法使用手勢；可點選或上下滑');return;}
-  const owned=new Worker(new URL('hand-worker.js',import.meta.url));worker=owned;
+  if(!window.Worker||!window.createImageBitmap||!window.OffscreenCanvas){fail('此瀏覽器不支援手部追蹤，請用 Chrome 開啟');return;}
+  let owned:Worker;
+  try{owned=new Worker(new URL('hand-worker.js',import.meta.url));worker=owned;}
+  catch{fail('手部追蹤程式無法啟動，請重新整理或用 Chrome 開啟');return;}
+  handFeedback('手部模型載入中…','loading');
   let ready=false;handError='';handInitTimer=window.setTimeout(()=>fail(),20000);
-  const fail=()=>{if(run!==gestureRun)return;stopHands();status('手勢未能啟動；可點選或上下滑');};
   owned.onerror=event=>{handError=event.message.slice(0,300);fail();};
   owned.onmessage=(event:MessageEvent)=>{
     if(run!==gestureRun)return;
-    if(event.data.type==='error'){handError=event.data.stage+': '+event.data.message;fail();return;}
+    if(event.data.type==='error'){handError=event.data.stage+': '+event.data.message;fail(event.data.stage==='frame'?'手部影像無法處理，請重開手勢或用 Chrome 開啟':'手部模型載入失敗，請重新整理');return;}
     if(event.data.type==='ready'){
-      ready=true;clearTimeout(handInitTimer);$('gestureZone').hidden=false;positionSensor();status('食指尖放進右下虛線區，上劃下一件、下劃上一件；收指回位');return;
+      ready=true;lastResult=performance.now();clearTimeout(handInitTimer);$('gestureZone').hidden=false;positionSensor();handFeedback('模型已載入，正在找手…','searching');status('先讓整隻手入鏡，看到綠點後再把食指尖移入虛線區');return;
     }
     if(event.data.type==='result'){
-      busy=false;gestureFrames++;
-      const delta=gesture.update(indexPoint(event.data.points,event.data.worldPoints),performance.now());
+      busy=false;gestureFrames++;lastResult=performance.now();
+      const points=event.data.points as {x:number;y:number}[]|null;
+      handPresent=Array.isArray(points)&&points.length===21&&points.every(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y));
+      drawHand(handPresent?points:null);
+      const point=indexPoint(points,event.data.worldPoints),delta=gesture.update(point,lastResult);
+      indexPose=point?.pointing?'index':point?.retracted?'folded':handPresent?'other':'none';
+      const inside=!!point&&point.x>=SENSOR.left&&point.x<=SENSOR.right&&point.y>=SENSOR.top&&point.y<=SENSOR.bottom;
+      const feedback=!handPresent?'還沒追到手，請讓整隻手入鏡':gesture.phase==='retract'||gesture.phase==='fired'?'已切換，請收起食指回位':gesture.phase==='cooldown'?'收指成功，稍等一下再伸食指':point?.retracted?'已追到手，請伸出食指':!point?.pointing?'已追到手，請只伸食指':!inside?'已追到食指，請把指尖移入虛線區':gesture.phase==='armed'?'食指已就緒，可以上下劃動':'已追到食指，停一下等就緒';
+      handFeedback(feedback,!handPresent?'searching':gesture.phase==='armed'?'armed':'detected');
       $('gestureZone').dataset.phase=gesture.phase;
-      $('gestureHint').textContent=gesture.phase==='armed'?'已就緒 · 上劃下一件／下劃上一件':gesture.phase==='retract'||gesture.phase==='fired'?'已切換 · 請收起食指回位':gesture.phase==='cooldown'?'回位完成 · 稍等一下再伸食指':'只伸食指，指尖放進虛線區停一下';
       if(delta){gestureSwitches++;next(delta,'gesture');}
     }
   };
@@ -183,13 +227,14 @@ async function startHands(){
   const loop=async(now:number)=>{
     if(run!==gestureRun)return;
     raf=requestAnimationFrame(loop);
+    if(ready&&now-lastResult>8000){fail('手部影格處理停住了，請關閉後重開手勢');return;}
     if(!ready||busy||source.readyState<2||now-lastFrame<100||source.currentTime===lastVideoTime)return;
     busy=true;lastFrame=now;lastVideoTime=source.currentTime;
     try{
       const frame=await createImageBitmap(source,{resizeWidth:384,resizeHeight:Math.max(1,Math.round(384*source.videoHeight/source.videoWidth))});
       if(run!==gestureRun){frame.close();return;}
       owned.postMessage({type:'frame',frame,at:now},[frame]);
-    }catch{fail();}
+    }catch{fail('鏡頭影格無法讀取，請重新開啟鏡頭');}
   };
   raf=requestAnimationFrame(loop);
 }
@@ -226,7 +271,7 @@ const allow=(step:{confirm?:unknown;label?:string})=>!step.confirm&&(['下一件
 const agent=createAgent({allow});
 let unregister=registerTools(agent,{allow});
 window.addEventListener('pageshow',event=>{if(event.persisted){unregister();unregister=registerTools(agent,{allow});}});
-const getState=()=>({selected,displayed,phase,mode,cameraPhase,cameraGeneration:cameraRun,tracks:stream?.getTracks().map(track=>track.readyState)??[],worker:!!worker,gestureFrames,gestureSwitches,gesturePhase:gesture.phase,handError});
+const getState=()=>({selected,displayed,phase,mode,cameraPhase,cameraGeneration:cameraRun,tracks:stream?.getTracks().map(track=>track.readyState)??[],worker:!!worker,gestureFrames,gestureSwitches,gesturePhase:gesture.phase,handError,handPresent,indexPose});
 Object.assign(window,{cloakMirror:{agent,getState,stop:stopCamera}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera('頁面已離開；鏡頭已停止');});
 window.addEventListener('pagehide',()=>{stopCamera();unregister();clearTimeout(wheelTimer);});

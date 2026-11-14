@@ -1,7 +1,11 @@
 export const SENSOR={left:.70,right:.98,top:.10,bottom:.90};
-export function sensorRect(width,height,videoWidth,videoHeight){
+export function cameraRect(width,height,videoWidth,videoHeight){
   const scale=Math.min(width/videoWidth,height/videoHeight),w=videoWidth*scale,h=videoHeight*scale;
-  return {x:(width-w)/2+w*SENSOR.left,y:(height-h)/2+h*SENSOR.top,width:w*(SENSOR.right-SENSOR.left),height:h*(SENSOR.bottom-SENSOR.top)};
+  return {x:(width-w)/2,y:(height-h)/2,width:w,height:h};
+}
+export function sensorRect(width,height,videoWidth,videoHeight){
+  const image=cameraRect(width,height,videoWidth,videoHeight);
+  return {x:image.x+image.width*SENSOR.left,y:image.y+image.height*SENSOR.top,width:image.width*(SENSOR.right-SENSOR.left),height:image.height*(SENSOR.bottom-SENSOR.top)};
 }
 export class SwipeGesture {
   constructor() { this.reset(); }
@@ -49,7 +53,7 @@ export function indexPoint(points,worldPoints) {
   };
   const scale=distance(hand[0],hand[5]);
   if(scale<1e-4||distance(hand[5],hand[17])<1e-4||[[5,6],[6,7],[7,8]].some(([a,b])=>distance(hand[a],hand[b])<scale*.08))return null;
-  const extended=(mcp,pip,dip,tip)=>angle(hand[mcp],hand[pip],hand[dip])>=155&&angle(hand[pip],hand[dip],hand[tip])>=150&&distance(hand[tip],hand[0])>distance(hand[pip],hand[0])*1.15;
+  const extended=(mcp,pip,dip,tip)=>angle(hand[mcp],hand[pip],hand[dip])>=155&&angle(hand[pip],hand[dip],hand[tip])>=140&&distance(hand[tip],hand[0])>distance(hand[pip],hand[0])*1.15;
   const folded=(mcp,pip,dip,tip)=>angle(hand[mcp],hand[pip],hand[dip])<=125&&distance(hand[tip],hand[0])<=distance(hand[pip],hand[0])*1.05;
   const pointing=extended(5,6,7,8)&&[[9,10,11,12],[13,14,15,16],[17,18,19,20]].every(finger=>folded(...finger));
   return {x:1-points[8].x,y:points[8].y,pointing,retracted:folded(5,6,7,8)};

@@ -37,6 +37,10 @@ runtime into its local `dist/` output. No CDN is needed during camera use.
   is unrestricted. Put the fingertip in the dashed region of the bottom-right
   original preview and wait for **已就緒**. Move the extended finger upward for
   the next garment or downward for the previous one.
+- The original preview draws green hand landmarks and reports whether the model
+  is loading, no hand is visible, an index is outside the activation box, or the
+  gesture is ready. Natural slight fingertip curvature is accepted. If the
+  local server is unavailable, the page reports it before opening a camera.
 - After each selection, fold the index finger briefly before returning and
   extending it again. A switch remains locked until an explicit fold has been
   observed for at least 220 ms and a one-second cooldown has elapsed. Tracking
@@ -75,7 +79,11 @@ model-download unit tests, the build, then browser checks using the pinned
 or accesses the physical camera: browser checks use a synthetic camera device.
 The base suite executes the real local hand model; a separate QA-only landmark
 replay exercises index up/down selection and folded return through the actual
-app callbacks. Neither proves physical-user recognition accuracy.
+app callbacks. The final real-model check also uses two checksum-pinned official MediaPipe hand
+photographs, downloaded to ignored `qa/fixtures/` if absent. It checks positive
+hand/index detection, folded-hand feedback and stale-overlay removal without
+using a physical camera. These fixtures do not prove physical-user recognition
+accuracy.
 
 Results, screenshots and traces go to ignored `qa/`. Root `npm test` also runs
 the gesture/model unit tests without prototype dependencies, model download,
