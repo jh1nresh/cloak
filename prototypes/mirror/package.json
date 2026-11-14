@@ -5,20 +5,21 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/gesture.test.mjs test/model.test.mjs",
-    "check": "npm run typecheck && npm test && npm run build && node test/browser.mjs && node test/index-browser.mjs && node test/hand-model-browser.mjs",
+    "test": "node --test test/gesture.test.mjs test/model.test.mjs test/trial.test.mjs",
+    "check": "npm run typecheck && npm test && npm run build && node test/browser.mjs && node test/index-browser.mjs && node test/hand-model-browser.mjs && node test/lucy-browser.mjs",
     "download-model": "node download-model.mjs",
     "serve": "node server.mjs",
     "test:hand-model": "node test/hand-model-browser.mjs"
   },
   "dependencies": {
+    "@decartai/sdk": "0.2.14",
+    "@mediapipe/tasks-vision": "1.2.3",
     "@ui-sdk/core": "0.1.0-beta.1",
-    "@ui-sdk/web": "0.1.0-beta.1",
-    "@mediapipe/tasks-vision": "1.2.3"
+    "@ui-sdk/web": "0.1.0-beta.1"
   },
   "devDependencies": {
     "esbuild": "0.25.12",
-    "typescript": "5.9.3",
-    "playwright-core": "1.65.1"
+    "playwright-core": "1.65.1",
+    "typescript": "5.9.3"
   }
 }

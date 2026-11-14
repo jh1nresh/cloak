@@ -134,7 +134,7 @@ try{
 
   page=await context.newPage();await page.setViewportSize({width:390,height:844});await page.goto(base+'/static/');await page.locator('body[data-ready="true"]').waitFor();await page.locator('#fitting').hover();await page.mouse.wheel(0,200);await sleep(500);
   assert('original static phone entry still renders and scrolls',await page.locator('body').getAttribute('data-active')==='1');
-  assert('server denies mutation routes',(await context.request.post(base+'/api/realtime-token',{data:{}})).status()===405);
+  assert('server rejects token mint without explicit origin and CSRF',(await context.request.post(base+'/api/realtime-token',{data:{}})).status()===403);
   assert('server rejects foreign Host',(await context.request.get(base,{headers:{Host:'attacker.invalid'}})).status()===403);
   assert('server does not serve credentials',(await context.request.get(base+'/.env')).status()===404);
 }catch(error){failure=error.message;if(page&&!page.isClosed())await page.screenshot({path:'qa/failure.png'}).catch(()=>{});}

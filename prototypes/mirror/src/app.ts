@@ -11,6 +11,10 @@ const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(
 const products:Product[]=JSON.parse($('catalog').textContent!).items;
 const group=$<Group>('garments'), gestures=$<Toggle>('gestures'), cameraMode=$<Toggle>('cameraMode');
 const source=$<HTMLVideoElement>('cameraPreview'), cameraMain=$<HTMLVideoElement>('cameraMain');
+const output=$<HTMLVideoElement>('liveOutput');
+type LiveHandle=Awaited<ReturnType<typeof import('./lucy.js').connectLucy>>;
+let live:LiveHandle|null=null,liveRun=0,livePhase='idle',liveAccepted=-1,liveBusy=false,livePending=false,liveVisible=false,trialUsed=false;
+let liveAbort:AbortController|null=null,liveTimer:number|undefined;
 const shell=$('clothingShell'), clothing=$<HTMLImageElement>('clothingImage');
 let selected=0,displayed=-1,revision=0,phase='loading',mode='demo';
 let cameraRun=0,stream:MediaStream|null=null,cameraPhase='idle',startPromise:Promise<MediaStream|null>|null=null;
@@ -21,20 +25,22 @@ const gesture=new SwipeGesture(), warmed=new Map<string,Promise<void>>();
 const status=(text:string)=>{$('cameraState').textContent=text;};
 const buttonState=()=>{
   $<Button>('startCamera').disabled=cameraPhase==='starting'||cameraPhase==='ready';
-  $<Button>('stopCamera').disabled=cameraPhase!=='starting'&&cameraPhase!=='ready';
+  $<Button>('startLive').disabled=trialUsed||livePhase==='connecting'||livePhase==='connected';
+  $<Button>('stopCamera').disabled=cameraPhase!=='starting'&&cameraPhase!=='ready'&&livePhase==='idle';
 };
 
 function views(){
   mode=cameraMode.pressed?'camera':'demo';
   document.body.dataset.mode=mode;
   $('demoStage').hidden=mode!=='demo';
-  cameraMain.hidden=mode!=='camera'||!stream;
+  cameraMain.hidden=mode!=='camera'||!stream||liveVisible;
+  output.hidden=mode!=='camera'||!liveVisible;
   $('cameraPlaceholder').hidden=mode!=='camera'||!!stream;
   $('originalImage').hidden=!!stream||mode==='camera';
   source.hidden=!stream;
-  $('modeBadge').textContent=mode==='demo'?'示範試穿 · 預先生成':'原始鏡頭 · 尚未 AI 換裝';
+  $('modeBadge').textContent=mode==='demo'?'示範試穿 · 預先生成':liveVisible?'Lucy 2.6 · AI 即時試穿':livePhase==='connecting'?'Lucy 連線中 · 目前原始鏡頭':'原始鏡頭 · 尚未 AI 換裝';
   $('originalCaption').textContent=stream?(mode==='demo'?'本機鏡頭 · 只用於手勢':'本機鏡頭 · 原樣'):(mode==='demo'?'示範人物 · 黑色背心':'鏡頭尚未開啟');
-  $('privacyNote').textContent=stream?'鏡頭只在本機 · 不錄影':'鏡頭已關閉 · 不錄影';
+  $('privacyNote').textContent=livePhase==='connecting'||livePhase==='connected'?'影像傳至 Decart · 不錄影':stream?'鏡頭只在本機 · 不錄影':'鏡頭已關閉 · 不錄影';
   selectionLabel();
   positionHandOverlay();
 }
@@ -68,7 +74,7 @@ function drawHand(points:{x:number;y:number}[]|null){
 function selectionLabel(){
   const name=products[selected].name;
   let text='';
-  if(mode==='camera')text='已選 '+name+'；鏡頭尚未 AI 換裝';
+  if(mode==='camera')text=livePhase==='connecting'?'正在連接 Lucy；已選 '+name:livePhase==='connected'?(liveAccepted===selected?'服裝參考已送出 · 請觀察 AI 畫面':'正在更新服裝參考 · '+name):'已選 '+name+'；請按 AI 試穿換上';
   else if(phase==='error')text=displayed<0?'試穿圖未載入；保留背心底圖':'載入失敗；保留 '+products[displayed].name;
   else if(phase==='pending')text='正在準備 '+name;
   else if(phase==='dressing')text='正在穿上 · 示範圖片';
@@ -98,6 +104,7 @@ async function select(index:number,origin='navigation'){
   $('position').replaceChildren(document.createTextNode(String(selected+1).padStart(2,'0')+' '));
   const count=document.createElement('span');count.textContent='/ '+products.length;$('position').append(count);
   if(origin!=='rail')group.querySelectorAll('ui-toggle')[selected]?.scrollIntoView({block:'nearest',behavior:'instant'});
+  void sendLive();
   phase='pending';shell.hidden=true;shell.classList.remove('dressing');selectionLabel();
   try{
     await Promise.all([warm(item),new Promise(resolve=>setTimeout(resolve,matchMedia('(prefers-reduced-motion: reduce)').matches?0:140))]);
@@ -138,6 +145,7 @@ function stopHands(){
 }
 
 function stopCamera(reason='鏡頭已停止；可以重新開啟'){
+  stopLive();
   cameraRun++;clearTimeout(autoStop);stopHands();
   const owned=stream;stream=null;startPromise=null;cameraPhase='idle';
   owned?.getTracks().forEach(track=>track.stop());
@@ -176,10 +184,81 @@ function startCamera(showCamera=true):Promise<MediaStream|null>{
   return startPromise;
 }
 
+function stopLive(){
+  const pending=livePending;liveRun++;clearTimeout(liveTimer);liveAbort?.abort();liveAbort=null;
+  const owned=live;live=null;livePending=false;liveBusy=false;liveVisible=false;livePhase='idle';liveAccepted=-1;
+  owned?.disconnect();
+  const remote=output.srcObject as MediaStream|null;remote?.getTracks().forEach(track=>track.stop());output.pause();output.srcObject=null;
+  // The SDK cannot abort a pending dial; leaving this document closes its WebRTC owner.
+  if(pending)location.replace('/stopped');
+}
+
+const livePrompt=(item:Product)=>'Replace only the person’s current top with the '+item.title+' shown in the garment reference image. Preserve the person’s face, identity, body shape, lower clothing and background. Do not copy any model from the product photo.';
+async function liveReference(index:number,signal:AbortSignal){
+  const item=products[index],url=new URL(item.garment,location.href);
+  if(url.origin!==location.origin||!url.pathname.startsWith('/wardrobe-assets/'))throw Error('Invalid garment reference');
+  const response=await fetch(url,{signal});if(!response.ok)throw Error('Garment unavailable');
+  const blob=await response.blob();if(!blob.type.startsWith('image/')||blob.size>10000000)throw Error('Invalid garment');
+  return new File([blob],item.garment.split('/').pop()!,{type:blob.type});
+}
+async function sendLive(){
+  if(!live||liveBusy||!liveAbort)return;
+  const run=liveRun,owned=live,signal=liveAbort.signal;liveBusy=true;
+  try{
+    while(run===liveRun&&liveAccepted!==selected){
+      const index=selected,image=await liveReference(index,signal);
+      if(run!==liveRun)return;
+      if(index!==selected)continue;
+      await owned.set({image,prompt:livePrompt(products[index]),enhance:false});
+      if(run!==liveRun)return;
+      liveAccepted=index;selectionLabel();
+    }
+  }catch{if(run===liveRun)stopCamera('Lucy 換衣失敗，已停止；不會自動重試');}
+  finally{if(run===liveRun)liveBusy=false;}
+}
+async function startLive(){
+  if(trialUsed||livePhase==='connecting'||livePhase==='connected')return;
+  const run=++liveRun,controller=new AbortController();liveAbort=controller;livePhase='connecting';buttonState();
+  liveTimer=window.setTimeout(()=>{if(run===liveRun)stopCamera('Lucy 啟動逾時，已停止；可以檢查本機服務');},15000);
+  status('準備 Lucy；按開始後鏡頭影像傳至 Decart，標準模式最多25秒');
+  try{
+    const response=await fetch('/api/realtime-config',{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('Config unavailable');
+    const config=await response.json();if(run!==liveRun)return;
+    if(!config.configured||config.reserved){trialUsed=!!config.reserved;stopCamera(config.reserved?'這次 AI 試用已使用；不會自動重試':'本機尚未設定 Decart 金鑰');return;}
+    const adapter=await import('./lucy.js');if(run!==liveRun)return;
+    const camera=await startCamera();if(run!==liveRun||!camera)return;
+    clearTimeout(autoStop);clearTimeout(liveTimer);liveTimer=window.setTimeout(()=>stopCamera('25秒 AI 試用已停止；不會自動重連'),25000);
+    let index=selected,image=await liveReference(index,controller.signal);if(run!==liveRun)return;
+    while(index!==selected){index=selected;image=await liveReference(index,controller.signal);if(run!==liveRun)return;}
+    let tokenRequested=false;livePending=true;
+    const connected=await adapter.connectLucy(camera,{
+      image,prompt:livePrompt(products[index]),
+      token:async()=>{
+        if(tokenRequested||run!==liveRun)throw Error('Reconnect disabled');tokenRequested=true;trialUsed=true;buttonState();
+        const res=await fetch('/api/realtime-token',{method:'POST',headers:{'Content-Type':'application/json','X-Cloak-Token':config.csrf},body:JSON.stringify({start:true}),signal:controller.signal});
+        if(!res.ok)throw Error('Token unavailable');const token=await res.json();if(run!==liveRun)throw Error('Stopped');return token.apiKey;
+      },
+      onStream:remote=>{
+        if(run!==liveRun){remote.getTracks().forEach(track=>track.stop());return;}
+        remote.getAudioTracks().forEach(track=>track.stop());output.srcObject=remote;
+        void output.play().then(()=>{if(run!==liveRun)return;liveVisible=true;views();}).catch(()=>{if(run===liveRun)stopCamera('AI 畫面無法播放，已停止');});
+      },
+      onConnection:state=>{if(run===liveRun&&(state==='reconnecting'||state==='disconnected'))stopCamera('Lucy 連線中斷，已停止；不自動重連');}
+    });
+    if(run!==liveRun){connected.disconnect();return;}
+    livePending=false;live=connected;livePhase='connected';liveAccepted=index;buttonState();views();
+    connected.on('error',()=>{if(run===liveRun)stopCamera('Lucy 串流錯誤，已停止');});
+    connected.on('sessionEnded',()=>{if(run===liveRun)stopCamera('Lucy 試用已結束');});
+    status('Lucy 已連線；只伸食指停一下，上滑下一件、下滑上一件');
+    if(!gestures.pressed){gestures.pressed=true;void startHands();}
+    void sendLive();
+  }catch{if(run===liveRun){livePending=false;stopCamera('Lucy 無法連線，已停止；不會自動重試');}}
+}
+
 async function startHands(){
   const run=++gestureRun;
   const fail=(reason='手部模型未能啟動；請重新整理或用 Chrome 開啟')=>{if(run!==gestureRun)return;stopHands();status(reason);handFeedback(reason,'error');};
-  status('開啟本機手勢；不傳送鏡頭影像');
+  status(livePhase==='connected'?'Lucy 試穿中；食指追蹤只在本機':'開啟本機手勢；不傳送鏡頭影像');
   handFeedback('正在連接本機手部模型…','loading');
   const controller=new AbortController();handPreflight=controller;
   const checkTimeout=window.setTimeout(()=>controller.abort(),4000);
@@ -239,10 +318,11 @@ group.addEventListener('valuechange',event=>{const values=(event as CustomEvent)
 $('next').addEventListener('action',()=>next(1));
 $('previous').addEventListener('action',()=>next(-1));
 $('retryLook').addEventListener('action',()=>{void select(selected,'retry');});
+$('startLive').addEventListener('action',()=>{void startLive();});
 $('startCamera').addEventListener('action',()=>{void startCamera();});
 $('stopCamera').addEventListener('action',()=>stopCamera());
 $('fullBody').addEventListener('pressedchange',event=>{$('mirror').classList.toggle('full',(event as CustomEvent).detail.value);});
-cameraMode.addEventListener('pressedchange',()=>{views();status(mode==='camera'?'原始鏡頭預覽；尚未連接 AI 換裝':'示範人物 · 預先生成試穿圖');});
+cameraMode.addEventListener('pressedchange',()=>{if(livePhase!=='idle')stopCamera('已離開 AI 試穿，連線已停止');views();status(mode==='camera'?'原始鏡頭預覽；尚未連接 AI 換裝':'示範人物 · 預先生成試穿圖');});
 gestures.addEventListener('pressedchange',event=>{if((event as CustomEvent).detail.value)void startHands();else{stopHands();status('手勢已關閉；可點選或上下滑');}});
 let wheelAmount=0,wheelConsumed=false,wheelTimer:number|undefined;
 $('mirror').addEventListener('wheel',event=>{
@@ -266,7 +346,7 @@ const allow=(step:{confirm?:unknown;label?:string})=>!step.confirm&&(['下一件
 const agent=createAgent({allow});
 let unregister=registerTools(agent,{allow});
 window.addEventListener('pageshow',event=>{if(event.persisted){unregister();unregister=registerTools(agent,{allow});}});
-const getState=()=>({selected,displayed,phase,mode,cameraPhase,cameraGeneration:cameraRun,tracks:stream?.getTracks().map(track=>track.readyState)??[],worker:!!worker,gestureFrames,gestureSwitches,gesturePhase:gesture.phase,handError,handPresent,indexPose});
+const getState=()=>({selected,displayed,phase,mode,cameraPhase,cameraGeneration:cameraRun,tracks:stream?.getTracks().map(track=>track.readyState)??[],worker:!!worker,gestureFrames,gestureSwitches,gesturePhase:gesture.phase,handError,handPresent,indexPose,livePhase,liveAccepted,liveVisible,trialUsed});
 Object.assign(window,{cloakMirror:{agent,getState,stop:stopCamera}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera('頁面已離開；鏡頭已停止');});
 window.addEventListener('pagehide',()=>{stopCamera();unregister();clearTimeout(wheelTimer);});

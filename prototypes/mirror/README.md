@@ -12,12 +12,15 @@ Use Node 20.18.1 or later. From the repository root:
 npm ci --ignore-scripts --prefix prototypes/mirror
 npm run download-model --prefix prototypes/mirror
 npm run build --prefix prototypes/mirror
-npm run serve --prefix prototypes/mirror
+node --env-file=/path/to/private.env prototypes/mirror/server.mjs
 ```
 
 Open `http://127.0.0.1:8781/`. The existing phone prototype is also served at
 `http://127.0.0.1:8781/static/`. Set `PORT` to choose a different loopback port.
-Stop the server with Ctrl-C.
+Stop the server with Ctrl-C. The optional private env file contains only your
+server-side `DECART_API_KEY`; never put it under `dist/`, `models/` or source
+control. Without a key, demo and local-camera modes still work. For those modes,
+`npm run serve --prefix prototypes/mirror` needs no env file.
 
 The model download is an explicit, free download from Google's published model
 storage, verified against the URL, byte length and SHA-256 in
@@ -50,17 +53,46 @@ runtime into its local `dist/` output. No CDN is needed during camera use.
 - **停止**, Escape, hiding/leaving the page or the three-minute preview limit
   releases the camera and detector. Another explicit Start can restart them.
 
+## Own-camera Lucy trial
+
+Press **AI 試穿 · 25秒** to start Lucy2.6 in standard mode. This explicitly
+requests a video-only camera, sends that video and the selected original garment
+reference to Decart, and uses Decart credits. The transformed output occupies the
+main stage; the original stays in the bottom-right preview. Local index tracking
+starts automatically and uses the original stream, anywhere in the camera frame.
+Click, keys, wheel and index navigation update the same session with complete
+`set({image,prompt})` state. References come from all12 accepted MUJI USA/MISHOW/
+Lavahut snapshot items, not the pre-generated person images.
+
+A short-lived token is model/origin scoped, minted only after the user's Start.
+The client stops25seconds after camera preparation; the provider token caps a
+session at30seconds. Token expiry alone does not stop an established connection.
+One reservation is persisted in ignored `qa/lucy-reservation.json`, including on
+failure; refresh and process restart do not create another trial. There is no
+retry, automatic reconnect, fast mode, top-up, recording or microphone. A further
+trial requires a separately authorized reservation; do not delete the receipt to
+silently extend the allowance.
+
+Stop, Escape and page exit close the local camera, detector and realtime handle.
+If Stop happens while the SDK's uncancellable connect is pending, the app leaves
+for a script-free stopped page to close that document's WebRTC owner. A rejected
+request or disconnected session is shown as a failure, never a successful fit.
+The UI distinguishes selection, reference acceptance and a received remote
+stream: reference acknowledgement does not prove the rendered garment matches.
+
 ## What the prototype demonstrates
 
 Demonstration mode uses the existing synthetic person and 12 pre-generated
 results from the three-store Shopify snapshot. It is not a live product feed.
-Hand gestures navigate those demonstration results; they do not put garments
-onto the camera image. Lucy 2.6 streaming, live Shopify refresh and backend
-pre-generation are not connected here. The images do not establish garment
+In demo mode, hand gestures navigate those still images; the person is not an
+animated video. In Lucy mode the input is your camera, with actual provider
+output shown separately. Live Shopify refresh and backend pre-generation are
+not connected here. The images do not establish garment
 fidelity, body measurements or size/fit accuracy.
 
-Camera frames and hand landmarks remain transient and local. There is no
-microphone, recording, image upload, provider credential or paid inference.
+Hand landmarks remain transient and local. Camera-only mode stays local; AI
+Start shares video and garment references with Decart. There is no microphone
+or recording, and the permanent credential never reaches the browser.
 Chrome is the verified browser route; physical-user gesture accuracy and other
 browsers remain uncalibrated.
 
@@ -79,7 +111,10 @@ model-download unit tests, the build, then browser checks using the pinned
 or accesses the physical camera: browser checks use a synthetic camera device.
 The base suite executes the real local hand model; a separate QA-only landmark
 replay exercises index up/down selection and folded return through the actual
-app callbacks. The final real-model check also uses two checksum-pinned official MediaPipe hand
+app callbacks. A Lucy-only adapter fixture exercises the actual app lifecycle,
+serial reference updates and remote-video binding without calling Decart or
+accessing a physical camera. This is not provider-quality evidence.
+The final real-model check also uses two checksum-pinned official MediaPipe hand
 photographs, downloaded to ignored `qa/fixtures/` if absent. It checks positive
 hand/index detection, folded-hand feedback and stale-overlay removal without
 using a physical camera. These fixtures do not prove physical-user recognition
@@ -87,10 +122,11 @@ accuracy.
 
 Results, screenshots and traces go to ignored `qa/`. Root `npm test` also runs
 the gesture/model unit tests without prototype dependencies, model download,
-camera, browser or network access. The prototype's source is checked separately
+camera, browser or network access. It also covers guarded one-use token policy. The prototype's source is checked separately
 from the Next.js TypeScript/ESLint configuration, as with the existing wardrobe.
 
 The loopback server serves a fixed map of built files, rejects foreign Host and
-Origin values and mutation methods, and does not read credentials. Its CSP
-allows same-origin runtime resources and pinned ui-sdk style hashes; the
+Origin values and mutation methods except the Origin/CSRF-guarded token endpoint. The
+permanent key is read only from the server environment. Its CSP
+allows same-origin runtime resources and documented Decart signaling hosts and pinned ui-sdk style hashes; the
 existing static prototype retains its previous policy.

@@ -15,5 +15,5 @@ await cp(new URL('public/prototypes/wardrobe/wardrobe-assets/', baseline), new U
 await cp(new URL('node_modules/@mediapipe/tasks-vision/wasm/', root), new URL('wasm/', output), {recursive:true});
 await cp(new URL('models/', root), new URL('models/', output), {recursive:true});
 await cp(new URL('src/style.css', root), new URL('style.css', output));
-await build({entryPoints:[fileURLToPath(new URL('src/app.ts',root)),fileURLToPath(new URL('src/hand-worker.ts',root))],outdir:fileURLToPath(output),bundle:true,format:'esm',target:'es2022',minify:true,legalComments:'inline'});
+await build({entryPoints:[fileURLToPath(new URL('src/app.ts',root)),fileURLToPath(new URL('src/hand-worker.ts',root)),fileURLToPath(new URL('src/lucy.ts',root))],outdir:fileURLToPath(output),bundle:true,external:['./lucy.js'],format:'esm',target:'es2022',minify:true,legalComments:'inline'});
 console.log('Built local mirror prototype');
