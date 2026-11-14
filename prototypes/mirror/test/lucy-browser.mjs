@@ -1,0 +1,70 @@
+import {chromium} from 'playwright-core';
+import {writeFile} from 'node:fs/promises';
+import {handPose} from './hand-fixtures.mjs';
+const base='http://127.0.0.1:'+(process.env.CLOAK_MIRROR_PORT||'8781');
+const checks=[],errors=[];let tokenCalls=0;
+const check=(name,value)=>{checks.push({name,pass:!!value});if(!value)throw Error(name);};
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function until(fn,ms=7000){const end=Date.now()+ms;while(Date.now()<end){if(await fn())return;await sleep(60);}throw Error('Lucy fixture condition timed out');}
+const context=await chromium.launchPersistentContext('./qa/profile',{channel:'chrome',headless:true,viewport:{width:1440,height:900},args:['--cloak-mirror-qa','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
+const mock=`export async function connectLucy(input,o){
+ const f=window.lucyFixture;f.connectCalls++;f.initial={name:o.image.name,prompt:o.prompt,bytes:o.image.size};await o.token();
+ if(f.connectDelay)await new Promise(r=>f.resolveConnect=r);
+ if(f.connectError)throw Error('QA connect failure');
+ const canvas=document.createElement('canvas');canvas.width=640;canvas.height=360;const ctx=canvas.getContext('2d');ctx.fillStyle='#5b7953';ctx.fillRect(0,0,640,360);ctx.fillStyle='white';ctx.fillText('QA simulated Lucy output',30,30);const remote=canvas.captureStream(10);f.remote=remote;
+ o.onStream(remote);o.onConnection('connected');
+ return {set:async s=>{f.sets.push({name:s.image.name,prompt:s.prompt,bytes:s.image.size});if(f.holdSet)await new Promise(r=>f.releaseSet=r);if(f.setError)throw Error('QA set failure');},disconnect:()=>{f.disconnects++;remote.getTracks().forEach(t=>t.stop());},on:(name,callback)=>{f.handlers[name]=callback;}};
+}`;
+let page,failure;
+try{
+ await context.route('**/lucy.js',r=>r.fulfill({contentType:'text/javascript',body:mock}));
+ await context.route('**/api/realtime-config',r=>r.fulfill({json:{configured:true,reserved:false,csrf:'a'.repeat(64),model:'lucy-2.6',clientSeconds:25,serverSeconds:30}}));
+ await context.route('**/api/realtime-token',async r=>{tokenCalls++;if(new URL(r.request().url()).origin!==base)throw Error('Wrong token origin');await r.fulfill({json:{apiKey:'qa-ephemeral-token'}});});
+ page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(()=>{
+  window.fixturePose=null;window.lucyFixture={connectCalls:0,sets:[],disconnects:0,handlers:{},inputs:[]};
+  const get=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);navigator.mediaDevices.getUserMedia=async c=>{const s=await get(c);window.lucyFixture.inputs.push(s);return s;};
+  const Native=window.Worker;window.Worker=class{constructor(url,options){if(!String(url).endsWith('/hand-worker.js'))return new Native(url,options);this.dead=false;}postMessage(d){if(d.type==='init')setTimeout(()=>{if(!this.dead)this.onmessage?.({data:{type:'ready'}})},10);if(d.type==='frame'){d.frame.close();setTimeout(()=>{if(!this.dead)this.onmessage?.({data:{type:'result',points:window.fixturePose,worldPoints:window.fixturePose}})},5)}}terminate(){this.dead=true;}};
+ });
+ const fresh=async()=>{await page.goto(base);await page.locator('body[data-ready="true"]').waitFor();};
+ const state=()=>page.evaluate(()=>window.cloakMirror.getState());
+ const pose=opts=>page.evaluate(p=>window.fixturePose=p,handPose(opts));
+ const start=async()=>{await page.click('#startLive button');await until(async()=>(await state()).livePhase==='connected'&&(await state()).liveVisible);};
+ await fresh();check('page load does not mint or start inference',tokenCalls===0&&await page.evaluate(()=>window.lucyFixture.connectCalls===0));
+ check('AI start states short duration and cloud disclosure',(await page.locator('#startLive').innerText()).includes('25')&&(await page.locator('#aiDisclosure').innerText()).includes('Decart'));
+ const denied=await page.evaluate(()=>window.cloakMirror.agent.act({steps:[{ref:'開始 Lucy 即時試穿',action:'press'}]}));check('agent cannot start paid camera inference',denied.ok===false&&tokenCalls===0);
+ await pose({tipY:.65,mirroredX:.18});await start();await until(async()=>(await state()).gesturePhase==='armed');
+ check('AI start automatically enables local index tracking',(await state()).worker);
+ check('one live connection starts with original first garment File',await page.evaluate(()=>window.lucyFixture.connectCalls===1&&window.lucyFixture.initial.name==='garment-0.jpg'&&window.lucyFixture.initial.bytes>1000&&window.lucyFixture.initial.prompt.includes('Cotton Voile Blouse')));
+ check('main stage shows remote output while PiP retains original input',await page.evaluate(()=>{const o=document.getElementById('liveOutput'),p=document.getElementById('cameraPreview');return !o.hidden&&o.srcObject!==p.srcObject&&p.srcObject===window.lucyFixture.inputs[0]&&document.getElementById('cameraMain').hidden;}));
+ check('cloud mode does not claim local-only processing',(await page.locator('#privacyNote').innerText()).includes('Decart'));
+ await pose({tipY:.57,mirroredX:.18});await until(async()=>(await state()).liveAccepted===1);
+ check('short index up sends next store garment through live set',await page.evaluate(()=>window.lucyFixture.sets.at(-1).name==='garment-1.jpg'));
+ await pose({tipY:.7,mirroredX:.18});await sleep(1200);check('extended return cannot send another live garment',await page.evaluate(()=>window.lucyFixture.sets.length===1));
+ await pose({pose:'folded',tipY:.6});await until(async()=>(await state()).gesturePhase==='idle'&&(await state()).indexPose==='folded');await pose({tipY:.3,mirroredX:.5});await until(async()=>(await state()).gesturePhase==='armed');await pose({tipY:.38,mirroredX:.5});await until(async()=>(await state()).liveAccepted===0);
+ check('fold then short index down sends previous garment',await page.evaluate(()=>window.lucyFixture.sets.at(-1).name==='garment-0.jpg'));
+ await page.locator('#garments ui-toggle').nth(2).click();await until(async()=>(await state()).liveAccepted===2);
+ check('left garment rail controls same live connection',await page.evaluate(()=>window.lucyFixture.connectCalls===1&&window.lucyFixture.sets.at(-1).name==='garment-2.jpg'));
+ check('reference acknowledgement is not claimed as verified rendered fit',(await page.locator('#selectionState').innerText()).includes('參考已送出'));
+ await page.evaluate(()=>window.lucyFixture.holdSet=true);await page.locator('#garments ui-toggle').nth(3).click();await until(()=>page.evaluate(()=>!!window.lucyFixture.releaseSet));
+ await page.locator('#garments ui-toggle').nth(4).click();await page.locator('#garments ui-toggle').nth(5).click();await page.evaluate(()=>{window.lucyFixture.holdSet=false;window.lucyFixture.releaseSet();});await until(async()=>(await state()).liveAccepted===5);
+ check('rapid choices coalesce to latest garment without a new connection',await page.evaluate(()=>window.lucyFixture.connectCalls===1&&window.lucyFixture.sets.at(-1).name==='garment-5.jpg'&&!window.lucyFixture.sets.some(s=>s.name==='garment-4.jpg')));
+ let releaseReference,referenceStarted=false;await page.route('**/wardrobe-assets/garment-6.jpg',async route=>{if(route.request().resourceType()==='fetch'){referenceStarted=true;await new Promise(r=>releaseReference=r);}await route.continue().catch(()=>{});});
+ await page.locator('#garments ui-toggle').nth(6).click();await until(()=>referenceStarted);await page.locator('#garments ui-toggle').nth(7).click();await page.locator('#garments ui-toggle').nth(8).click();releaseReference();await until(async()=>(await state()).liveAccepted===8);
+ check('selection changed during image fetch never submits obsolete reference',await page.evaluate(()=>!window.lucyFixture.sets.some(s=>s.name==='garment-6.jpg'||s.name==='garment-7.jpg')&&window.lucyFixture.sets.at(-1).name==='garment-8.jpg'));await page.unroute('**/wardrobe-assets/garment-6.jpg');
+ await page.setViewportSize({width:390,height:844});check('cloud and usage notice stays visible before and during AI use',await page.locator('#aiDisclosure').isVisible()&&(await page.locator('#aiDisclosure').innerText()).includes('使用額度'));check('AI controls fit phone viewport',await page.locator('#startLive button').evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight;}));await page.setViewportSize({width:1440,height:900});
+ await page.screenshot({path:'qa/lucy-fixture-wiring.png'});
+ await page.click('#stopCamera button');check('Stop closes SDK, input, output and hand worker',await page.evaluate(()=>window.lucyFixture.disconnects===1&&!window.cloakMirror.getState().worker&&window.lucyFixture.inputs.every(s=>s.getTracks().every(t=>t.readyState==='ended'))&&window.lucyFixture.remote.getTracks().every(t=>t.readyState==='ended')&&document.getElementById('liveOutput').srcObject===null));
+ check('same page cannot repeat paid trial',!(await page.locator('#startLive button').isEnabled()));
+ await fresh();await start();await page.evaluate(()=>window.lucyFixture.setError=true);await page.locator('#garments ui-toggle').nth(1).click();await until(async()=>(await state()).cameraPhase==='idle');check('set failure closes live session instead of showing stale success',await page.evaluate(()=>window.lucyFixture.disconnects===1&&window.cloakMirror.getState().liveVisible===false));
+ await fresh();await page.setViewportSize({width:390,height:844});check('pre-start mobile cloud/credit notice is visible',await page.locator('#aiDisclosure').isVisible()&&(await page.locator('#aiDisclosure').innerText()).includes('使用額度'));await page.setViewportSize({width:1440,height:900});
+ let configWaiting=false,releaseConfig;await page.route('**/api/realtime-config',async route=>{configWaiting=true;await new Promise(r=>releaseConfig=r);await route.fulfill({json:{configured:true,reserved:false,csrf:'a'.repeat(64)}}).catch(()=>{});});
+ await page.click('#startLive button');await until(()=>configWaiting);check('Stop is available before camera permission while config waits',await page.locator('#stopCamera button').isEnabled());await page.click('#stopCamera button');releaseConfig();await sleep(150);
+ check('early Stop aborts startup without opening camera or provider',await page.evaluate(()=>window.lucyFixture.inputs.length===0&&window.lucyFixture.connectCalls===0&&window.cloakMirror.getState().livePhase==='idle'));await page.unroute('**/api/realtime-config');
+ await fresh();await page.evaluate(()=>window.lucyFixture.connectDelay=true);await page.click('#startLive button');await until(()=>page.evaluate(()=>!!window.lucyFixture.resolveConnect));await page.click('#stopCamera button');await page.waitForURL(base+'/stopped');check('Stop during uncancellable SDK dial leaves owner document',true);
+ await fresh();await start();await page.evaluate(()=>dispatchEvent(new PageTransitionEvent('pagehide')));check('page exit disconnects live stream',await page.evaluate(()=>window.lucyFixture.disconnects===1&&window.lucyFixture.inputs.every(s=>s.getTracks().every(t=>t.readyState==='ended'))));
+ await fresh();await page.clock.install();await start();await page.clock.fastForward(26000);check('25 second watchdog stops paid session',await page.evaluate(()=>window.lucyFixture.disconnects===1&&window.cloakMirror.getState().cameraPhase==='idle'));await page.clock.resume();
+ check('no browser runtime errors',errors.length===0);
+}catch(e){failure=e.message;if(page)console.log(JSON.stringify(await page.evaluate(()=>({state:window.cloakMirror?.getState(),fixture:window.lucyFixture?{connectCalls:window.lucyFixture.connectCalls,sets:window.lucyFixture.sets,disconnects:window.lucyFixture.disconnects}:null})).catch(()=>null)));if(page)await page.screenshot({path:'qa/lucy-fixture-failure.png'}).catch(()=>{});}
+finally{await context.close();await writeFile('qa/lucy-fixture-results.json',JSON.stringify({passed:!failure,checks,errors,failure,tokenCalls,evidence:'QA route replaces only Lucy adapter; actual app gesture, selection, original-camera and output binding run with fake camera. No paid token/inference or physical-camera access.'},null,2));}
+console.log(JSON.stringify({passed:!failure,checks:checks.length,failure,errors}));if(failure)process.exitCode=1;

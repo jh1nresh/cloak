@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "mobile/**",
     "prototypes/wardrobe/**",
+    "prototypes/mirror/**",
     "public/prototypes/wardrobe/**",
     "next-env.d.ts",
   ]),
