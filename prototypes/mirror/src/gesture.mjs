@@ -1,11 +1,6 @@
-export const SENSOR={left:.70,right:.98,top:.10,bottom:.90};
 export function cameraRect(width,height,videoWidth,videoHeight){
   const scale=Math.min(width/videoWidth,height/videoHeight),w=videoWidth*scale,h=videoHeight*scale;
   return {x:(width-w)/2,y:(height-h)/2,width:w,height:h};
-}
-export function sensorRect(width,height,videoWidth,videoHeight){
-  const image=cameraRect(width,height,videoWidth,videoHeight);
-  return {x:image.x+image.width*SENSOR.left,y:image.y+image.height*SENSOR.top,width:image.width*(SENSOR.right-SENSOR.left),height:image.height*(SENSOR.bottom-SENSOR.top)};
 }
 export class SwipeGesture {
   constructor() { this.reset(); }
@@ -19,8 +14,8 @@ export class SwipeGesture {
       if(!this.resetConfirmed||now-this.lastFired<1000){this.phase=this.resetConfirmed?'cooldown':'retract';return 0;}
       this.blocked=false;this.resetConfirmed=false;this.foldedSince=null;
     }
-    const inside=point?.pointing && point.x>=SENSOR.left && point.x<=SENSOR.right && point.y>=SENSOR.top && point.y<=SENSOR.bottom;
-    if (!inside) {
+    const visible=point?.pointing && point.x>=0 && point.x<=1 && point.y>=0 && point.y<=1;
+    if (!visible) {
       this.anchor=null;
       this.phase='idle';
       return 0;

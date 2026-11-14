@@ -48,7 +48,8 @@ try{
   await until(async()=>(await state()).handPresent&&(await state()).indexPose==='index');
   check('real hand model detects official pointing photograph',true);
   check('tracked hand renders21 visible landmarks',await page.locator('#handOverlay circle').count()===21&&await page.locator('#handOverlay').isVisible());
-  check('index outside the activation box gets specific guidance',(await page.locator('#handStatus').innerText()).includes('移入虛線區'));
+  await until(async()=>(await state()).gesturePhase==='armed');
+  check('real pointing hand can arm without an activation box',(await page.locator('#handStatus').innerText()).includes('已就緒')&&await page.locator('#previewSensor').count()===0);
   const aligned=()=>page.evaluate(()=>{
     const source=document.getElementById('cameraPreview'),v=source.getBoundingClientRect(),o=document.getElementById('handOverlay').getBoundingClientRect();
     const scale=Math.min(v.width/source.videoWidth,v.height/source.videoHeight),w=source.videoWidth*scale,h=source.videoHeight*scale;

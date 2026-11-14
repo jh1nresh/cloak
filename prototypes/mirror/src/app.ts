@@ -1,7 +1,7 @@
 import '@ui-sdk/web/button';
 import '@ui-sdk/web/toggle';
 import {createAgent,registerTools} from '@ui-sdk/web/agent';
-import {SwipeGesture,indexPoint,sensorRect,cameraRect,SENSOR} from './gesture.mjs';
+import {SwipeGesture,indexPoint,cameraRect} from './gesture.mjs';
 
 type Product={variant_id:string;name:string;title:string;store:string;source_url:string;result:string;garment:string;legacy?:boolean};
 type Toggle=HTMLElement&{pressed:boolean};
@@ -36,14 +36,11 @@ function views(){
   $('originalCaption').textContent=stream?(mode==='demo'?'本機鏡頭 · 只用於手勢':'本機鏡頭 · 原樣'):(mode==='demo'?'示範人物 · 黑色背心':'鏡頭尚未開啟');
   $('privacyNote').textContent=stream?'鏡頭只在本機 · 不錄影':'鏡頭已關閉 · 不錄影';
   selectionLabel();
-  positionSensor();
+  positionHandOverlay();
 }
 
-function positionSensor(){
-  const marker=$('previewSensor');marker.hidden=!stream||!worker||!gestures.pressed;
-  if(marker.hidden||!source.videoWidth)return;
-  const rect=sensorRect(source.clientWidth,source.clientHeight,source.videoWidth,source.videoHeight);
-  marker.style.left=rect.x+'px';marker.style.top=rect.y+'px';marker.style.width=rect.width+'px';marker.style.height=rect.height+'px';
+function positionHandOverlay(){
+  if(!stream||!worker||!gestures.pressed||!source.videoWidth)return;
   const image=cameraRect(source.clientWidth,source.clientHeight,source.videoWidth,source.videoHeight),overlay=$('handOverlay');
   overlay.style.left=image.x+'px';overlay.style.top=image.y+'px';overlay.style.width=image.width+'px';overlay.style.height=image.height+'px';
 }
@@ -138,7 +135,6 @@ function stopHands(){
   worker?.terminate();worker=null;busy=false;lastFrame=0;lastVideoTime=-1;gesture.reset();
   handPresent=false;indexPose='none';drawHand(null);$('handStatus').hidden=true;
   gestures.pressed=false;$('gestureZone').hidden=true;
-  $('previewSensor').hidden=true;
 }
 
 function stopCamera(reason='鏡頭已停止；可以重新開啟'){
@@ -207,7 +203,7 @@ async function startHands(){
     if(run!==gestureRun)return;
     if(event.data.type==='error'){handError=event.data.stage+': '+event.data.message;fail(event.data.stage==='frame'?'手部影像無法處理，請重開手勢或用 Chrome 開啟':'手部模型載入失敗，請重新整理');return;}
     if(event.data.type==='ready'){
-      ready=true;lastResult=performance.now();clearTimeout(handInitTimer);$('gestureZone').hidden=false;positionSensor();handFeedback('模型已載入，正在找手…','searching');status('先讓整隻手入鏡，看到綠點後再把食指尖移入虛線區');return;
+      ready=true;lastResult=performance.now();clearTimeout(handInitTimer);$('gestureZone').hidden=false;positionHandOverlay();handFeedback('模型已載入，正在找手…','searching');status('鏡頭內任何位置都可操作；只伸食指，停一下等就緒');return;
     }
     if(event.data.type==='result'){
       busy=false;gestureFrames++;lastResult=performance.now();
@@ -216,8 +212,7 @@ async function startHands(){
       drawHand(handPresent?points:null);
       const point=indexPoint(points,event.data.worldPoints),delta=gesture.update(point,lastResult);
       indexPose=point?.pointing?'index':point?.retracted?'folded':handPresent?'other':'none';
-      const inside=!!point&&point.x>=SENSOR.left&&point.x<=SENSOR.right&&point.y>=SENSOR.top&&point.y<=SENSOR.bottom;
-      const feedback=!handPresent?'還沒追到手，請讓整隻手入鏡':gesture.phase==='retract'||gesture.phase==='fired'?'已切換，請收起食指回位':gesture.phase==='cooldown'?'收指成功，稍等一下再伸食指':point?.retracted?'已追到手，請伸出食指':!point?.pointing?'已追到手，請只伸食指':!inside?'已追到食指，請把指尖移入虛線區':gesture.phase==='armed'?'食指已就緒，可以上下劃動':'已追到食指，停一下等就緒';
+      const feedback=!handPresent?'還沒追到手，請讓整隻手入鏡':gesture.phase==='retract'||gesture.phase==='fired'?'已切換，請收起食指回位':gesture.phase==='cooldown'?'收指成功，稍等一下再伸食指':point?.retracted?'已追到手，請伸出食指':!point?.pointing?'已追到手，請只伸食指':gesture.phase==='armed'?'食指已就緒，可以上下劃動':'已追到食指，停一下等就緒';
       handFeedback(feedback,!handPresent?'searching':gesture.phase==='armed'?'armed':'detected');
       $('gestureZone').dataset.phase=gesture.phase;
       if(delta){gestureSwitches++;next(delta,'gesture');}
@@ -275,5 +270,5 @@ const getState=()=>({selected,displayed,phase,mode,cameraPhase,cameraGeneration:
 Object.assign(window,{cloakMirror:{agent,getState,stop:stopCamera}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera('頁面已離開；鏡頭已停止');});
 window.addEventListener('pagehide',()=>{stopCamera();unregister();clearTimeout(wheelTimer);});
-new ResizeObserver(positionSensor).observe(source);
+new ResizeObserver(positionHandOverlay).observe(source);
 buttonState();views();await select(0);document.body.dataset.ready='true';

@@ -1,13 +1,13 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {SwipeGesture,indexPoint,sensorRect,cameraRect} from '../src/gesture.mjs';
+import {SwipeGesture,indexPoint,cameraRect} from '../src/gesture.mjs';
 import {handPose} from './hand-fixtures.mjs';
 const point=(x,y,pose='index')=>({x,y,pointing:pose==='index',retracted:pose==='folded'});
-function fire(g,direction=1,at=0){
+function fire(g,direction=1,at=0,x=.82){
   const y=direction>0?.65:.3;
-  assert.equal(g.update(point(.82,y),at),0);assert.equal(g.update(point(.82,y),at+200),0);
-  assert.equal(g.update(point(.82,y-direction*.18),at+400),direction);
+  assert.equal(g.update(point(x,y),at),0);assert.equal(g.update(point(x,y),at+200),0);
+  assert.equal(g.update(point(x,y-direction*.18),at+400),direction);
 }
 test('index tip, rather than palm centre, provides mirrored navigation coordinates',()=>{
   const p=indexPoint(handPose({tipY:.4,mirroredX:.81}));
@@ -43,7 +43,7 @@ test('upward stroke selects next exactly once, including after a long held retur
   assert.equal(g.phase,'retract');
 });
 test('downward stroke selects previous exactly once',()=>{const g=new SwipeGesture();fire(g,-1);assert.equal(g.update(point(.82,.3),1800),0);});
-test('tracking loss, leaving the region and an open palm cannot rearm after a switch',()=>{
+test('tracking loss, crossing the frame and an open palm cannot rearm after a switch',()=>{
   const g=new SwipeGesture();fire(g);
   for(const [at,p]of [[500,null],[900,null],[1200,point(.3,.4)],[1600,point(.3,.4)],[1900,point(.82,.5,'palm')],[2200,point(.82,.5,'palm')],[2500,point(.82,.6)],[2800,point(.82,.6)],[3000,point(.82,.4)]])assert.equal(g.update(p,at),0);
 });
@@ -69,9 +69,12 @@ test('small jitter, diagonal motion and movement before the stationary dwell can
   g.reset();g.update(point(.72,.7),0);g.update(point(.72,.7),200);assert.equal(g.update(point(.96,.4),400),0);
   g.reset();g.update(point(.82,.65),0);assert.equal(g.update(point(.82,.4),90),0);assert.equal(g.update(point(.82,.4),300),0);
 });
-test('outside-region movement and expired strokes do not fire',()=>{
-  const g=new SwipeGesture();for(let i=0;i<12;i++)assert.equal(g.update(point(.3,.2+(i%3)*.2),i*100),0);
-  g.reset();g.update(point(.82,.65),0);g.update(point(.82,.65),200);assert.equal(g.update(point(.82,.4),1200),0);
+test('index swipes work across the full camera frame in both directions',()=>{
+  for(const x of [.02,.15,.5,.85,.98])for(const direction of [1,-1])fire(new SwipeGesture(),direction,0,x);
+});
+test('off-camera or invalid coordinates and expired strokes do not fire',()=>{
+  for(const x of [-.01,1.01,NaN]){const g=new SwipeGesture();for(const [at,y]of [[0,.65],[200,.65],[400,.4]])assert.equal(g.update(point(x,y),at),0);}
+  const g=new SwipeGesture();g.update(point(.5,.65),0);g.update(point(.5,.65),200);assert.equal(g.update(point(.5,.4),1200),0);
 });
 test('raw landmark sequence integrates pose, directional strokes and a folded return',()=>{
   const g=new SwipeGesture(),actions=[];
@@ -81,8 +84,7 @@ test('raw landmark sequence integrates pose, directional strokes and a folded re
   assert.deepEqual(actions,[1,-1]);
 });
 test('new camera session reset clears stale pose and cooldown',()=>{const g=new SwipeGesture();fire(g);g.reset();fire(g,-1,2000);});
-test('sensor marker follows full camera coordinates inside desktop and portrait preview',()=>{
+test('camera overlay follows contained desktop and portrait video',()=>{
   assert.deepEqual(cameraRect(160,205,1280,720),{x:0,y:57.5,width:160,height:90});
-  const r=sensorRect(160,205,1280,720);assert.equal(r.x,112);assert.equal(r.y,66.5);assert.equal(r.height,72);assert.ok(Math.abs(r.width-44.8)<.0001);
-  const phone=sensorRect(99,130,1280,720);assert.ok(phone.x>0&&phone.x+phone.width<99&&phone.y>0&&phone.y+phone.height<130);
+  assert.deepEqual(cameraRect(99,130,1280,720),{x:0,y:37.15625,width:99,height:55.6875});
 });

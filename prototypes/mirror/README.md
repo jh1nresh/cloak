@@ -34,17 +34,17 @@ runtime into its local `dist/` output. No CDN is needed during camera use.
   queue wraps.
 - Leave **示範試穿** selected and press **手勢切換** to allow the local camera.
   Extend the index finger with the other three fingers curled; thumb position
-  is unrestricted. Put the fingertip in the dashed region of the bottom-right
-  original preview and wait for **已就緒**. Move the extended finger upward for
+  is unrestricted. Keep the hand visible anywhere in the camera frame and
+  wait for **已就緒**. Move the extended finger upward for
   the next garment or downward for the previous one.
 - The original preview draws green hand landmarks and reports whether the model
-  is loading, no hand is visible, an index is outside the activation box, or the
-  gesture is ready. Natural slight fingertip curvature is accepted. If the
+  is loading, no hand is visible, the index pose is recognized, or the
+  gesture is ready. No activation box is required. Natural slight fingertip curvature is accepted. If the
   local server is unavailable, the page reports it before opening a camera.
 - After each selection, fold the index finger briefly before returning and
   extending it again. A switch remains locked until an explicit fold has been
   observed for at least 220 ms and a one-second cooldown has elapsed. Tracking
-  loss, leaving the region and holding an extended finger cannot reset it.
+  loss, moving across the frame and holding an extended finger cannot reset it.
 - **我的鏡頭** selects an original-camera layout. **開啟鏡頭** requests a local
   video-only stream. This mode is explicitly labelled as not AI transformed.
 - **停止**, Escape, hiding/leaving the page or the three-minute preview limit

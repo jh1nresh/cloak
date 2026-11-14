@@ -36,11 +36,12 @@ try{
   await pose({pose:'palm',tipY:.65});await page.click('#gestures button');await until(async()=>(await state()).gestureFrames>=2);
   await pose({pose:'palm',tipY:.42});await sleep(500);
   check('old open-palm motion no longer changes garments',(await state()).selected===0);
-  await pose({tipY:.65});await until(async()=>(await state()).gesturePhase==='armed');
+  await pose({tipY:.65,mirroredX:.18});await until(async()=>(await state()).gesturePhase==='armed');
   check('index-only guidance is visible',(await page.locator('#cameraState').innerText()).includes('食指'));
+  check('no activation box or box instruction remains',await page.locator('#previewSensor').count()===0&&!(await page.locator('#gestureHint').innerText()).includes('虛線'));
   await page.screenshot({path:'qa/index-finger-guide.png'});
-  await pose({tipY:.47});await until(async()=>(await state()).selected===1&&(await state()).displayed===1);
-  check('index up stroke reaches actual outfit selection',(await state()).gestureSwitches===1);
+  await pose({tipY:.47,mirroredX:.18});await until(async()=>(await state()).selected===1&&(await state()).displayed===1);
+  check('index up stroke on left side reaches actual outfit selection',(await state()).gestureSwitches===1);
   await pose({tipY:.7});await sleep(1300);
   check('extended-finger return cannot select previous',(await state()).selected===1&&(await state()).gestureSwitches===1);
   await pose(null);await sleep(350);await pose({tipY:.65});await sleep(300);await pose({tipY:.45});await sleep(300);
@@ -48,9 +49,9 @@ try{
   check('return hint requests explicit finger folding',(await page.locator('#gestureHint').innerText()).includes('收起食指'));
   await pose({pose:'folded',tipY:.45});await sleep(140);await pose({pose:'folded',tipY:.7});await sleep(300);
   check('folded-finger return does not change garments',(await state()).selected===1&&(await state()).gestureSwitches===1);
-  await pose({tipY:.32});await until(async()=>(await state()).gesturePhase==='armed');
-  await pose({tipY:.5});await until(async()=>(await state()).selected===0&&(await state()).displayed===0);
-  check('newly extended index down stroke selects previous',(await state()).gestureSwitches===2);
+  await pose({tipY:.32,mirroredX:.5});await until(async()=>(await state()).gesturePhase==='armed');
+  await pose({tipY:.5,mirroredX:.5});await until(async()=>(await state()).selected===0&&(await state()).displayed===0);
+  check('newly extended index down stroke at centre selects previous',(await state()).gestureSwitches===2);
   await page.click('#stopCamera button');
   check('index gesture mode releases camera and worker',await page.evaluate(()=>!window.cloakMirror.getState().worker&&window.fixtureCameraStreams.every(stream=>stream.getTracks().every(track=>track.readyState==='ended'))));
   const cameraCalls=await page.evaluate(()=>window.fixtureCameraStreams.length);

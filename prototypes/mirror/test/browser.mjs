@@ -109,16 +109,11 @@ try{
   await page.click('#gestures button');
   await until(()=>page.evaluate(()=>window.cloakMirror.getState().gestureFrames>2),25000);
   assert('real local MediaPipe model processes camera fixture frames',await page.evaluate(()=>window.cloakMirror.getState().worker&&window.cloakMirror.getState().handError===''));
-  const sensorAligned=()=>page.evaluate(()=>{
-    const v=document.getElementById('cameraPreview'),b=v.getBoundingClientRect(),m=document.getElementById('previewSensor').getBoundingClientRect();
-    const scale=Math.min(b.width/v.videoWidth,b.height/v.videoHeight),w=v.videoWidth*scale,h=v.videoHeight*scale;
-    const x=b.left+(b.width-w)/2+w*.70,y=b.top+(b.height-h)/2+h*.10;
-    return getComputedStyle(v).objectFit==='contain'&&getComputedStyle(v).objectPosition==='50% 50%'&&Math.abs(m.left-x)<1&&Math.abs(m.top-y)<1&&Math.abs(m.width-w*.28)<1&&Math.abs(m.height-h*.80)<1;
-  });
-  assert('desktop gesture marker matches full camera coordinates',await sensorAligned());
+  const unrestricted=()=>page.evaluate(()=>!document.getElementById('previewSensor')&&document.getElementById('cameraState').textContent.includes('任何位置'));
+  assert('desktop gestures have no activation box',await unrestricted());
   await page.screenshot({path:'qa/gesture-desktop.png'});
   await page.setViewportSize({width:390,height:844});await sleep(200);
-  assert('portrait gesture marker matches full camera coordinates',await sensorAligned());
+  assert('portrait gestures have no activation box',await unrestricted());
   await page.screenshot({path:'qa/gesture-mobile.png'});await page.setViewportSize({width:1440,height:900});
   await page.click('#gestures button');assert('gesture off terminates worker but keeps visible local camera',await page.evaluate(()=>!window.cloakMirror.getState().worker&&window.cloakMirror.getState().tracks.length===1));
   await page.click('#stopCamera button');assert('Stop releases camera and both video bindings',await page.evaluate(()=>window.gumStreams.every(stream=>stream.getTracks().every(track=>track.readyState==='ended'))&&['cameraMain','cameraPreview'].every(id=>document.getElementById(id).srcObject===null)));
