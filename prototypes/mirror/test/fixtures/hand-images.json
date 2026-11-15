@@ -1,0 +1,13 @@
+{
+  "source": "https://github.com/google-ai-edge/mediapipe/blob/master/third_party/external_files.bzl",
+  "pointing_up": {
+    "url": "https://storage.googleapis.com/mediapipe-assets/tasks/testdata/vision/pointing_up.jpg?generation=1782185079090086",
+    "sha256": "ecf8ca2611d08fa25948a4fc10710af9120e88243a54da6356bacea17ff3e36e",
+    "bytes": 74461
+  },
+  "fist": {
+    "url": "https://storage.googleapis.com/mediapipe-assets/tasks/testdata/vision/fist.jpg?generation=1782184710240231",
+    "sha256": "43fa1cabf3f90d574accc9a56986e2ee48638ce59fc65af1846487f73bb2ef24",
+    "bytes": 71355
+  }
+}

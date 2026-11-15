@@ -100,3 +100,12 @@ The static phone-first prototype at `/prototypes/wardrobe/index.html` contains
 12 distinct pre-generated looks from three Shopify shops. It keeps the person fixed
 and reveals the next garment when swiping vertically. See
 [prototype setup, rebuild and limitations](prototypes/wardrobe/README.md).
+
+## Transparent mirror prototype
+
+The separate [mirror prototype](prototypes/mirror/README.md) adds a transparent
+desktop layout, a left garment rail, a bottom-right original preview and local
+index-finger navigation. Its demonstration mode uses the existing 12 pre-generated
+looks; camera mode is explicitly untransformed. No provider credentials or paid
+inference are used. Follow its setup to download the pinned local hand model,
+build and start the loopback preview. Root tests include its gesture/model logic.
